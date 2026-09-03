@@ -26,15 +26,24 @@ export function ChangePasswordForm() {
           <div className="space-y-2">
             <Label htmlFor="currentPassword">รหัสผ่านชั่วคราว</Label>
             <Input id="currentPassword" name="currentPassword" type="password" autoComplete="current-password" required />
+            {state.fieldErrors?.currentPassword?.[0] ? (
+              <p className="text-sm text-destructive">{state.fieldErrors.currentPassword[0]}</p>
+            ) : null}
           </div>
           <div className="space-y-2">
             <Label htmlFor="newPassword">รหัสผ่านใหม่</Label>
             <Input id="newPassword" name="newPassword" type="password" autoComplete="new-password" minLength={12} required />
             <p className="text-xs text-muted-foreground">อย่างน้อย 12 ตัวอักษร และมีพิมพ์ใหญ่ พิมพ์เล็ก ตัวเลข</p>
+            {state.fieldErrors?.newPassword?.[0] ? (
+              <p className="text-sm text-destructive">{state.fieldErrors.newPassword[0]}</p>
+            ) : null}
           </div>
           <div className="space-y-2">
             <Label htmlFor="confirmPassword">ยืนยันรหัสผ่านใหม่</Label>
             <Input id="confirmPassword" name="confirmPassword" type="password" autoComplete="new-password" minLength={12} required />
+            {state.fieldErrors?.confirmPassword?.[0] ? (
+              <p className="text-sm text-destructive">{state.fieldErrors.confirmPassword[0]}</p>
+            ) : null}
           </div>
           <SubmitButton className="w-full" size="lg">บันทึกรหัสผ่านใหม่</SubmitButton>
         </form>

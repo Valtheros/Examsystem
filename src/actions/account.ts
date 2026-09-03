@@ -27,7 +27,8 @@ export async function changeInitialPasswordAction(
     if (!parsed.success) {
       return {
         ok: false,
-        message: "กรุณาตรวจสอบข้อมูล",
+        message:
+          parsed.error.issues[0]?.message ?? "กรุณาตรวจสอบข้อมูลรหัสผ่าน",
         fieldErrors: parsed.error.flatten().fieldErrors,
       };
     }

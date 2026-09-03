@@ -39,9 +39,9 @@ export const updateUserSchema = z.object({
 
 export const changePasswordSchema = z
   .object({
-    currentPassword: z.string().min(1),
+    currentPassword: z.string().min(1, "กรุณากรอกรหัสผ่านชั่วคราว"),
     newPassword: passwordSchema,
-    confirmPassword: z.string(),
+    confirmPassword: z.string().min(1, "กรุณายืนยันรหัสผ่านใหม่"),
   })
   .refine((value) => value.newPassword === value.confirmPassword, {
     path: ["confirmPassword"],
