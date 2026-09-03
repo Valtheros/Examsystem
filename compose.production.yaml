@@ -1,0 +1,139 @@
+name: examsystem
+
+services:
+  minio:
+    image: minio/minio:RELEASE.2025-07-23T15-54-02Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    networks: [backend]
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-07-21T05-28-08Z
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_APP_ACCESS_KEY: ${MINIO_APP_ACCESS_KEY}
+      MINIO_APP_SECRET_KEY: ${MINIO_APP_SECRET_KEY}
+      STORAGE_BUCKET: ${STORAGE_BUCKET}
+      APP_ORIGIN: ${APP_ORIGIN}
+    volumes:
+      - ./infrastructure/minio-cors.xml:/config/minio-cors.xml:ro
+      - ./infrastructure/minio-app-policy.json:/config/minio-app-policy.json:ro
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - >-
+        until mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"; do sleep 1; done;
+        mc mb --ignore-existing "local/$${STORAGE_BUCKET}";
+        mc anonymous set none "local/$${STORAGE_BUCKET}";
+        sed "s|__APP_ORIGIN__|$${APP_ORIGIN}|g" /config/minio-cors.xml > /tmp/cors.xml;
+        mc cors set "local/$${STORAGE_BUCKET}" /tmp/cors.xml;
+        sed "s|__STORAGE_BUCKET__|$${STORAGE_BUCKET}|g" /config/minio-app-policy.json > /tmp/app-policy.json;
+        mc admin user add local "$${MINIO_APP_ACCESS_KEY}" "$${MINIO_APP_SECRET_KEY}" || true;
+        mc admin policy create local exam-system-app /tmp/app-policy.json;
+        mc admin policy attach local exam-system-app --user "$${MINIO_APP_ACCESS_KEY}";
+    restart: "no"
+    networks: [backend]
+
+  migrate:
+    build:
+      context: .
+      target: migrator
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      DIRECT_DATABASE_URL: ${DIRECT_DATABASE_URL}
+    restart: "no"
+    networks: [backend]
+
+  seed-admin:
+    profiles: [tools]
+    build:
+      context: .
+      target: migrator
+    command: npm run db:seed-admin
+    environment:
+      DIRECT_DATABASE_URL: ${DIRECT_DATABASE_URL}
+      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+    networks: [backend]
+
+  app:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_APP_URL: https://${APP_DOMAIN}
+      BETTER_AUTH_URL: https://${APP_DOMAIN}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-10}
+      STORAGE_ACCESS_KEY_ID: ${MINIO_APP_ACCESS_KEY}
+      STORAGE_SECRET_ACCESS_KEY: ${MINIO_APP_SECRET_KEY}
+      STORAGE_BUCKET: ${STORAGE_BUCKET}
+      STORAGE_INTERNAL_ENDPOINT: http://minio:9000
+      STORAGE_PUBLIC_ENDPOINT: https://${FILES_DOMAIN}
+      STORAGE_REGION: us-east-1
+      STORAGE_FORCE_PATH_STYLE: "true"
+      MAIL_TRANSPORT: gmail
+      MAIL_FROM: ${MAIL_FROM}
+      GMAIL_USER: ${GMAIL_USER}
+      GMAIL_CLIENT_ID: ${GMAIL_CLIENT_ID}
+      GMAIL_CLIENT_SECRET: ${GMAIL_CLIENT_SECRET}
+      GMAIL_REFRESH_TOKEN: ${GMAIL_REFRESH_TOKEN}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks: [backend]
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      FILES_DOMAIN: ${FILES_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    networks: [backend]
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  minio_data:
+  caddy_data:
+  caddy_config:

@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ระบบจัดพิมพ์ข้อสอบ คณะวิทยาศาสตร์
 
-## Getting Started
+เว็บแอปสำหรับจัดการรอบสอบ แบบฟอร์มส่งต้นฉบับ การตรวจ/ตัดข้อสอบ การพิมพ์ ใบปะหน้า การส่งมอบ และการแจกจ่ายเข้าห้องสอบ
 
-First, run the development server:
+## Stack
+
+- Next.js 16, React 19, TypeScript, Tailwind CSS, shadcn/ui
+- Supabase PostgreSQL เฉพาะฐานข้อมูล + Drizzle ORM
+- Better Auth (Username + Admin plugins)
+- MinIO private object storage บนเครื่องเซิร์ฟเวอร์
+- Nodemailer + Gmail OAuth2
+- Docker Compose และ Caddy สำหรับ production
+
+ระบบไม่ใช้ Supabase Auth, Supabase Storage, Cloudflare R2 หรือ Vercel
+
+## Production แบบ Docker
+
+1. อ่าน [การตั้งค่า](docs/SETUP.md)
+2. คัดลอก `.env.docker.example` เป็น `.env.docker` แล้วใส่ Supabase connection strings, domain และ secret
+3. ชี้ DNS ของโดเมนเว็บและโดเมนไฟล์มายังเซิร์ฟเวอร์
+4. เปิดระบบและรัน migration ด้วย Docker Compose
+5. สร้างบัญชีผู้ดูแลระบบคนแรกผ่าน service `seed-admin`
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+docker compose --env-file .env.docker -f compose.production.yaml up -d --build
+docker compose --env-file .env.docker -f compose.production.yaml --profile tools run --rm seed-admin
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+ไฟล์ PDF ถูกอัปโหลดจาก browser ไปยัง MinIO ด้วย Presigned URL โดยตรง ไม่ผ่าน request body ของ Next.js
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## ตรวจสอบคุณภาพ
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run lint
+npm run test
+npm run build
+```
 
-## Learn More
+เมื่อมี test environment พร้อม ใช้ `npm run test:e2e` เพื่อตรวจ workflow ผ่าน browser
 
-To learn more about Next.js, take a look at the following resources:
+## เอกสาร
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [Requirements](docs/REQUIREMENTS.md)
+- [Data Dictionary](docs/DATA_DICTIONARY.md)
+- [ERD](docs/ERD.md)
+- [Environment และ Deployment](docs/SETUP.md)

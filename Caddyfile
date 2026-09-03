@@ -1,0 +1,12 @@
+{$APP_DOMAIN} {
+  encode zstd gzip
+  reverse_proxy app:3000
+}
+
+{$FILES_DOMAIN} {
+  encode zstd gzip
+  request_body {
+    max_size 110MB
+  }
+  reverse_proxy minio:9000
+}

@@ -1,0 +1,2 @@
+ALTER TABLE "app"."exam_requests" DROP CONSTRAINT "exam_requests_original_count_positive";--> statement-breakpoint
+ALTER TABLE "app"."exam_requests" ADD CONSTRAINT "exam_requests_original_count_is_one" CHECK ("app"."exam_requests"."original_copy_count" = 1);

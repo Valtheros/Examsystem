@@ -1,0 +1,13 @@
+.git
+.next
+.vercel
+node_modules
+coverage
+playwright-report
+test-results
+.env
+.env.*
+!.env.example
+!.env.docker.example
+npm-debug.log*
+private-files
