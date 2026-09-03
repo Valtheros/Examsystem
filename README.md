@@ -5,18 +5,18 @@
 ## Stack
 
 - Next.js 16, React 19, TypeScript, Tailwind CSS, shadcn/ui
-- Supabase PostgreSQL เฉพาะฐานข้อมูล + Drizzle ORM
+- PostgreSQL 17 และ Drizzle ORM รันใน Docker
 - Better Auth (Username + Admin plugins)
 - MinIO private object storage บนเครื่องเซิร์ฟเวอร์
 - Nodemailer + Gmail OAuth2
 - Docker Compose และ Caddy สำหรับ production
 
-ระบบไม่ใช้ Supabase Auth, Supabase Storage, Cloudflare R2 หรือ Vercel
+ระบบ production รันด้วย Docker ทั้งหมด ไม่ใช้ Supabase, Cloudflare R2 หรือ Vercel
 
 ## Production แบบ Docker
 
 1. อ่าน [การตั้งค่า](docs/SETUP.md)
-2. คัดลอก `.env.docker.example` เป็น `.env.docker` แล้วใส่ Supabase connection strings, domain และ secret
+2. คัดลอก `.env.docker.example` เป็น `.env.docker` แล้วใส่ domain, PostgreSQL password และ secret
 3. ชี้ DNS ของโดเมนเว็บและโดเมนไฟล์มายังเซิร์ฟเวอร์
 4. เปิดระบบและรัน migration ด้วย Docker Compose
 5. สร้างบัญชีผู้ดูแลระบบคนแรกผ่าน service `seed-admin`

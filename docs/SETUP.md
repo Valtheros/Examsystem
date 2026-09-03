@@ -1,6 +1,6 @@
 # การตั้งค่าและติดตั้งระบบ
 
-Production ใช้สถาปัตยกรรมแบบผสม: Supabase ให้บริการเฉพาะ PostgreSQL ส่วน Next.js, MinIO และ Caddy รันอยู่บนเครื่องเซิร์ฟเวอร์ผ่าน Docker Compose ระบบไม่ใช้ Supabase Auth/Storage, Cloudflare R2 หรือ Vercel
+Production รันด้วย Docker Compose ทั้งระบบ: Next.js, PostgreSQL, MinIO และ Caddy อยู่บนเครื่องเซิร์ฟเวอร์เดียวกัน ระบบไม่ใช้ Supabase, Cloudflare R2 หรือ Vercel
 
 ## 1. สิ่งที่ต้องเตรียมบนเซิร์ฟเวอร์
 
@@ -12,18 +12,16 @@ Production ใช้สถาปัตยกรรมแบบผสม: Supabas
 
 ขนาดเครื่องเป็นเพียงค่าเริ่มต้น รุ่นนี้ยังไม่กำหนดเกณฑ์ concurrent users จนกว่าจะทราบสเปกและเครือข่ายของเครื่องจริง
 
-## 2. Supabase PostgreSQL
+## 2. PostgreSQL และพื้นที่ข้อมูล
 
-โปรเจกต์ใช้ Supabase เฉพาะ PostgreSQL โดย Better Auth สร้างตารางใน schema `better_auth` และข้อมูลระบบอยู่ใน schema `app`
+Compose เปิด PostgreSQL 17 ภายในเครือข่าย Docker โดยไม่เปิดพอร์ตฐานข้อมูลต่ออินเทอร์เน็ต Better Auth สร้างตารางใน schema `better_auth` และข้อมูลระบบอยู่ใน schema `app`
 
-จาก Supabase Dashboard เปิดเมนู **Connect** แล้วนำ connection string มาใส่ใน `.env.docker`:
+- ฐานข้อมูลเก็บใน named volume `postgres_data`
+- ไฟล์ข้อสอบเก็บใน named volume `minio_data`
+- ห้ามใช้ `docker compose down -v` บนระบบจริง เพราะ `-v` จะลบ volumes และข้อมูล
+- ค่ารหัสผ่าน `POSTGRES_PASSWORD` ควรสุ่มด้วย `openssl rand -hex 32` เพื่อให้เป็นอักขระ URL-safe
 
-- `DATABASE_URL`: ใช้ **Session pooler** พอร์ต 5432 สำหรับแอป Docker ที่ทำงานแบบ persistent และเซิร์ฟเวอร์ IPv4
-- `DIRECT_DATABASE_URL`: ใช้ Direct connection สำหรับ migration เมื่อเซิร์ฟเวอร์รองรับ IPv6; หากรองรับเฉพาะ IPv4 ให้ใช้ Session pooler เช่นกัน
-
-ให้คัดลอก connection string จาก Dashboard โดยตรงและ URL-encode รหัสผ่านหากมีอักขระพิเศษ ห้ามใช้ Supabase URL หรือ publishable key เพราะ runtime นี้ไม่ต้องใช้
-
-Supabase Free อาจพักโปรเจกต์เมื่อไม่มีการใช้งาน และไม่มีไฟล์ backup ให้ดาวน์โหลดจาก Dashboard จึงไม่ถือเป็น SLA production และควรทำ `pg_dump` แยกหากภายหลังต้องการสำรองข้อมูล
+Docker volume ช่วยให้ข้อมูลอยู่ต่อเมื่อ container ถูกสร้างใหม่ แต่ไม่ใช่ระบบสำรองข้อมูล หากดิสก์เสียข้อมูลยังสูญหายได้
 
 ## 3. ตัวแปร Production
 
@@ -36,7 +34,7 @@ cp .env.docker.example .env.docker
 แก้ค่าต่อไปนี้ใน `.env.docker`:
 
 - `APP_DOMAIN`, `FILES_DOMAIN`, `APP_ORIGIN`: โดเมนจริงของระบบ
-- `DATABASE_URL`, `DIRECT_DATABASE_URL`: connection strings จาก Supabase
+- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`: ฐานข้อมูลและบัญชีภายใน Docker
 - `BETTER_AUTH_SECRET`: สุ่มอย่างน้อย 32 ตัวอักษร
 - `BOOTSTRAP_ADMIN_*`: บัญชีผู้ดูแลระบบเริ่มต้นและรหัสผ่านชั่วคราวอย่างน้อย 12 ตัวอักษร
 - `MINIO_ROOT_*`: บัญชีดูแล MinIO ใช้เฉพาะตอน initialize
@@ -59,7 +57,7 @@ Compose จะทำงานตามลำดับดังนี้:
 
 1. เปิด MinIO และสร้าง private bucket
 2. สร้างบัญชี MinIO ของแอปโดยจำกัดสิทธิ์เฉพาะ bucket
-3. รัน Drizzle migration บน Supabase
+3. รอ PostgreSQL พร้อมแล้วรัน Drizzle migration ภายใน Docker
 4. เปิด Next.js แล้วตรวจสุขภาพผ่าน `/api/health`
 5. เปิด Caddy เพื่อออก TLS certificate และ reverse proxy สองโดเมน
 
@@ -73,11 +71,19 @@ docker compose --env-file .env.docker -f compose.production.yaml up -d --build
 docker compose --env-file .env.docker -f compose.production.yaml logs -f app caddy minio
 ```
 
-ข้อมูลไฟล์อยู่ใน Docker volume `minio_data` การลบ volume หรือดิสก์เสียทำให้ไฟล์สูญหาย ระบบรุ่นนี้ยังไม่มี automatic backup
+ข้อมูลฐานข้อมูลอยู่ใน `postgres_data` และไฟล์อยู่ใน `minio_data` การลบ volume หรือดิสก์เสียทำให้ข้อมูลสูญหาย ระบบรุ่นนี้ยังไม่มี automatic backup
+
+สำรองฐานข้อมูลด้วยคำสั่งต่อไปนี้ ไฟล์จะอยู่ในโฟลเดอร์ `backups/` บนเซิร์ฟเวอร์:
+
+```bash
+docker compose --env-file .env.docker -f compose.production.yaml --profile tools run --rm backup-db
+```
+
+ควรคัดลอกทั้ง database dump และข้อมูล MinIO ไปยังดิสก์หรือเครื่องอื่นเป็นระยะ โดยเฉพาะก่อนอัปเดตระบบหรือ Factory Reset
 
 ## 6. Local development
 
-`compose.yaml` มี PostgreSQL, MinIO และ Mailpit สำหรับพัฒนาโดยไม่แตะ Supabase production ส่วน `.env.example` แสดงค่าที่ใช้กับ local services
+`compose.yaml` มี PostgreSQL, MinIO และ Mailpit สำหรับพัฒนาแยกจากข้อมูล production ส่วน `.env.example` แสดงค่าที่ใช้กับ local services
 
 ```bash
 docker compose up -d

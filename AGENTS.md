@@ -7,13 +7,13 @@
 ## Technology
 
 - Next.js 16 App Router, React 19, TypeScript, Tailwind CSS, shadcn/ui, npm, Node.js 22
-- Supabase PostgreSQL เท่านั้น ไม่ใช้ Supabase Auth หรือ Supabase Storage
-- Drizzle ORM; Docker runtime ใช้ `DATABASE_URL` ของ Supavisor Session pooler และ migration ใช้ `DIRECT_DATABASE_URL`
+- PostgreSQL 17 รันใน Docker และเก็บข้อมูลใน named volume `postgres_data`
+- Drizzle ORM; production Compose สร้าง `DATABASE_URL` ภายในเครือข่าย Docker จาก `POSTGRES_*`
 - Better Auth อยู่ schema `better_auth`; ข้อมูลธุรกิจอยู่ schema `app`
 - MinIO private bucket บนเครื่องเซิร์ฟเวอร์ผ่าน S3 API; browser อัปโหลดตรงด้วย Presigned PUT
-- Next.js, MinIO และ Caddy รันด้วย Docker Compose; Caddy ออก HTTPS ให้โดเมนเว็บและโดเมนไฟล์
+- Next.js, PostgreSQL, MinIO และ Caddy รันด้วย Docker Compose; Caddy ออก HTTPS ให้โดเมนเว็บและโดเมนไฟล์
 - Nodemailer ใช้ Gmail OAuth2 บน production และ Mailpit สำหรับ local
-- ไม่ใช้ Vercel, Cloudflare R2 หรือ PostgreSQL container ใน production; `compose.yaml` มี PostgreSQL เฉพาะ local development
+- ไม่ใช้ Supabase, Vercel หรือ Cloudflare R2 ใน production; ฐานข้อมูลและไฟล์อยู่บนเครื่องเซิร์ฟเวอร์ที่รัน Docker
 
 ## Canonical Roles
 
