@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import Script from "next/script";
 import type { ReactNode } from "react";
 import { Toaster } from "sonner";
 
 import { APP_NAME } from "@/lib/constants";
+import { ImpersonationBanner } from "@/components/impersonation";
 
 import "./globals.css";
 
@@ -19,7 +21,7 @@ export const metadata: Metadata = {
     template: `%s | ${APP_NAME}`,
   },
   description:
-    "จัดการรอบสอบ ส่งต้นฉบับ ตรวจ พิมพ์ ส่งมอบ และแจกจ่ายข้อสอบอย่างตรวจสอบย้อนหลังได้",
+    "จัดการรอบสอบ ส่งต้นฉบับ ตรวจ และพิมพ์ข้อสอบพร้อมใบปะหน้าซองอย่างตรวจสอบย้อนหลังได้",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -27,7 +29,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="th" className={`${notoSansThai.variable} h-full antialiased`}>
       <body className="min-h-full bg-background text-foreground">
         {children}
-        <Toaster richColors position="top-right" />
+        <ImpersonationBanner />
+        <Toaster richColors closeButton position="top-right" toastOptions={{ duration: 5000 }} />
+        {process.env.NODE_ENV === "development" && <Script src="https://mcp.figma.com/mcp/html-to-design/capture.js" strategy="afterInteractive" />}
       </body>
     </html>
   );

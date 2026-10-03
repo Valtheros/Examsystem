@@ -12,11 +12,11 @@ import {
   Menu,
   Printer,
   RotateCcw,
-  ScanLine,
   Settings2,
   Users,
 } from "lucide-react";
 import Link from "next/link";
+import { Fragment, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -29,19 +29,18 @@ const allRoles = Object.values(ROLES);
 const items = [
   { href: "/dashboard", label: "ภาพรวม", icon: House, roles: allRoles },
   { href: "/dashboard/users", label: "ผู้ใช้", icon: Users, roles: [ROLES.ADMIN] },
-  { href: "/dashboard/audit", label: "Audit Log", icon: History, roles: [ROLES.ADMIN] },
-  { href: "/dashboard/notifications", label: "การส่งอีเมล", icon: MailWarning, roles: [ROLES.ADMIN] },
-  { href: "/dashboard/reset", label: "Factory Reset", icon: RotateCcw, roles: [ROLES.ADMIN] },
   { href: "/dashboard/rounds", label: "รอบสอบ", icon: Boxes, roles: [ROLES.OFFICER] },
-  { href: "/dashboard/rooms", label: "ห้องสอบ", icon: Settings2, roles: [ROLES.OFFICER] },
-  { href: "/dashboard/subjects", label: "รายวิชาและตาราง", icon: BookOpenCheck, roles: [ROLES.OFFICER] },
+  { href: "/dashboard/rooms", label: "ข้อมูลห้องสอบ", icon: Settings2, roles: [ROLES.OFFICER] },
+  { href: "/dashboard/subjects", label: "จัดรายวิชาและตารางสอบ", icon: BookOpenCheck, roles: [ROLES.OFFICER] },
   { href: "/dashboard/requests", label: "คำขอข้อสอบ", icon: ClipboardList, roles: allRoles },
   { href: "/dashboard/review", label: "ตรวจคำขอ", icon: FileClock, roles: [ROLES.AV_UNIT] },
   { href: "/dashboard/printing", label: "งานพิมพ์", icon: Printer, roles: [ROLES.AV_UNIT] },
-  { href: "/dashboard/deliveries", label: "รับมอบ/แจกจ่าย", icon: ScanLine, roles: [ROLES.OFFICER, ROLES.AV_UNIT] },
+  { href: "/dashboard/audit", label: "Audit Log", icon: History, roles: [ROLES.ADMIN] },
+  { href: "/dashboard/notifications", label: "การส่งอีเมล", icon: MailWarning, roles: [ROLES.ADMIN] },
+  { href: "/dashboard/reset", label: "Factory Reset", icon: RotateCcw, roles: [ROLES.ADMIN] },
 ] as const;
 
-function NavLinks({ role }: { role: AppRole }) {
+function NavLinks({ role, onNavigate }: { role: AppRole; onNavigate?: () => void }) {
   const pathname = usePathname();
   return (
     <nav className="space-y-1">
@@ -54,9 +53,13 @@ function NavLinks({ role }: { role: AppRole }) {
               : pathname.startsWith(item.href);
           const Icon = item.icon;
           return (
+            <Fragment key={item.href}>
+            {item.href === "/dashboard/audit" ? <p className="mb-2 mt-6 border-t px-3 pt-4 text-xs font-semibold text-muted-foreground">จัดการระบบ</p> : null}
             <Link
               key={item.href}
               href={item.href}
+              onClick={onNavigate}
+              aria-current={active ? "page" : undefined}
               className={cn(
                 "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
                 active
@@ -64,9 +67,10 @@ function NavLinks({ role }: { role: AppRole }) {
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
               )}
             >
-              <Icon className="size-4" />
+              <Icon className="size-4 shrink-0" />
               {item.label}
             </Link>
+            </Fragment>
           );
         })}
     </nav>
@@ -97,6 +101,7 @@ export function DashboardNav({
   username: string;
 }) {
   const router = useRouter();
+  const [menuOpen, setMenuOpen] = useState(false);
   async function signOut() {
     await authClient.signOut();
     router.replace("/login");
@@ -121,16 +126,17 @@ export function DashboardNav({
 
       <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b bg-background/90 px-4 backdrop-blur lg:ml-64 lg:px-8">
         <div className="lg:hidden">
-          <Sheet>
+          <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild>
               <Button variant="outline" size="icon" aria-label="เปิดเมนู">
                 <Menu className="size-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 p-4">
+            <SheetContent side="left" className="w-72 overflow-y-auto p-4 pt-12" aria-describedby={undefined}>
               <SheetTitle className="sr-only">เมนูระบบ</SheetTitle>
               <Brand />
-              <div className="mt-8"><NavLinks role={role} /></div>
+              <div className="mt-4 border-b pb-4"><p className="break-words text-sm font-medium">{name}</p><p className="text-xs text-muted-foreground">{role}</p></div>
+              <div className="mt-4"><NavLinks role={role} onNavigate={() => setMenuOpen(false)} /></div>
             </SheetContent>
           </Sheet>
         </div>

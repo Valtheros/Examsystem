@@ -15,8 +15,8 @@ const stages = [
   "เตรียมรอบสอบ",
   "ส่งต้นฉบับ",
   "ตรวจและตัดข้อสอบ",
-  "พิมพ์และส่งมอบ",
-  "แจกจ่ายเข้าห้องสอบ",
+  "พิมพ์ข้อสอบและใบปะหน้าซอง",
+  "ยืนยันพิมพ์เสร็จ",
 ];
 
 export default function HomePage() {
@@ -46,7 +46,7 @@ export default function HomePage() {
             {APP_NAME}
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
-            รวมการส่งต้นฉบับ การตรวจ ตัด พิมพ์ ส่งมอบ และแจกจ่ายข้อสอบไว้ในขั้นตอนเดียว
+            รวมการส่งต้นฉบับ การตรวจ การเตรียมพิมพ์ และใบปะหน้าซอง จนพิมพ์เสร็จไว้ในระบบเดียว
             พร้อมกำหนดสิทธิ์ตามหน้าที่และเก็บประวัติทุกเหตุการณ์สำคัญ
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
@@ -66,7 +66,7 @@ export default function HomePage() {
           <div className="mb-6 flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">ภาพรวมกระบวนการ</p>
-              <p className="text-xl font-semibold">จากอาจารย์ถึงห้องสอบ</p>
+              <p className="text-xl font-semibold">จากอาจารย์จนพิมพ์เสร็จ</p>
             </div>
             <FileLock2 className="size-8 text-primary" />
           </div>

@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 
-import { eq, max, sql } from "drizzle-orm";
+import { asc, eq, max, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
   auditLogs,
   coverSheets,
   examRequests,
+  printJobs,
   requestRooms,
   subjects,
 } from "@/db/schema";
@@ -19,7 +20,7 @@ import { deletePrivateObject, putPrivateObject } from "@/lib/storage";
 export const runtime = "nodejs";
 
 export async function POST(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ requestRoomId: string }> },
 ) {
   try {
@@ -37,6 +38,10 @@ export async function POST(
       .where(eq(requestRooms.id, requestRoomId))
       .limit(1);
     if (!data) throw new AppError("ไม่พบข้อมูลห้องของคำขอ", 404, "NOT_FOUND");
+    if (data.request.cancelledAt) throw new ConflictError("คำขอถูกยกเลิกแล้ว");
+    const [job] = await db.select().from(printJobs).where(eq(printJobs.requestId, data.request.id));
+    if (!job?.confirmedAt) throw new ConflictError("กรุณายืนยันไฟล์และจำนวนพิมพ์ก่อนสร้างใบปะหน้า");
+    const allRooms = await db.select({ id: requestRooms.id }).from(requestRooms).where(eq(requestRooms.requestId, data.request.id)).orderBy(asc(requestRooms.id));
     if (
       ![
         REQUEST_STATUSES.CUTTING,
@@ -47,7 +52,6 @@ export async function POST(
       throw new ConflictError("สร้างใบปะหน้าได้ตั้งแต่สถานะตัดข้อสอบจนถึงพิมพ์เสร็จ");
     }
 
-    const origin = new URL(request.url).origin;
     const pdf = await createCoverPdf({
       requestNo: data.request.requestNo,
       courseCode: data.subject.courseCode,
@@ -60,10 +64,14 @@ export async function POST(
       roomName: data.room.roomName,
       building: data.room.building,
       studentCount: data.room.studentCount,
+      baseCopyCount: data.room.baseCopyCount,
+      reserveCount: data.room.reserveCount,
       printCount: data.room.printCount,
+      submissionForm: data.request.submissionForm,
+      printRevision: job.revision,
+      envelopeNo: `${allRooms.findIndex((room) => room.id === data.room.id) + 1}/${allRooms.length}`,
       senderName: data.room.senderName,
       note: data.room.note,
-      scanUrl: `${origin}/api/distributions/scan/${data.room.qrToken}`,
     });
     const storageKey = `cover-sheets/${data.request.id}/${randomUUID()}.pdf`;
     await putPrivateObject({
@@ -80,13 +88,13 @@ export async function POST(
           sql`select pg_advisory_xact_lock(hashtext(${`cover:${data.room.id}`}))`,
         );
         const [lockedRequest] = await tx
-          .select({ status: examRequests.status })
+          .select({ status: examRequests.status, cancelledAt: examRequests.cancelledAt })
           .from(examRequests)
           .where(eq(examRequests.id, data.request.id))
           .for("update")
           .limit(1);
         if (
-          !lockedRequest ||
+          !lockedRequest || lockedRequest.cancelledAt ||
           ![
             REQUEST_STATUSES.CUTTING,
             REQUEST_STATUSES.PRINTING,
@@ -95,6 +103,9 @@ export async function POST(
         ) {
           throw new ConflictError("สถานะคำขอเปลี่ยนแล้ว ไม่สามารถสร้างใบปะหน้าได้");
         }
+        const [currentJob] = await tx.select().from(printJobs).where(eq(printJobs.requestId, data.request.id));
+        const [currentRoom] = await tx.select().from(requestRooms).where(eq(requestRooms.id, data.room.id));
+        if (!currentJob || currentJob.revision !== job.revision || !currentRoom || currentRoom.printCount !== data.room.printCount || currentRoom.baseCopyCount !== data.room.baseCopyCount || currentRoom.reserveCount !== data.room.reserveCount) throw new ConflictError("จำนวนหรือไฟล์เปลี่ยนระหว่างสร้างใบปะหน้า กรุณาสร้างใหม่");
         const [latest] = await tx
           .select({ version: max(coverSheets.version) })
           .from(coverSheets)
@@ -107,6 +118,7 @@ export async function POST(
             storageKey,
             sha256: pdf.sha256,
             version,
+            printRevision: job.revision,
             generatedBy: session.user.id,
           })
           .returning();

@@ -1,5 +1,6 @@
 import {
   REQUEST_STATUSES,
+  LEGACY_DELIVERED_STATUS,
   ROLES,
   type AppRole,
   type RequestStatus,
@@ -23,8 +24,8 @@ const allowedTransitions: Record<RequestStatus, readonly RequestStatus[]> = {
   [REQUEST_STATUSES.RETURNED]: [REQUEST_STATUSES.PENDING_REVIEW],
   [REQUEST_STATUSES.CUTTING]: [REQUEST_STATUSES.PRINTING],
   [REQUEST_STATUSES.PRINTING]: [REQUEST_STATUSES.PRINTED],
-  [REQUEST_STATUSES.PRINTED]: [REQUEST_STATUSES.DELIVERED],
-  [REQUEST_STATUSES.DELIVERED]: [],
+  [REQUEST_STATUSES.PRINTED]: [],
+  [LEGACY_DELIVERED_STATUS]: [],
 };
 
 const transitionRoles: Partial<Record<RequestStatus, readonly AppRole[]>> = {
@@ -33,7 +34,6 @@ const transitionRoles: Partial<Record<RequestStatus, readonly AppRole[]>> = {
   [REQUEST_STATUSES.CUTTING]: [ROLES.AV_UNIT],
   [REQUEST_STATUSES.PRINTING]: [ROLES.AV_UNIT],
   [REQUEST_STATUSES.PRINTED]: [ROLES.AV_UNIT],
-  [REQUEST_STATUSES.DELIVERED]: [ROLES.AV_UNIT],
 };
 
 export function canViewRequest(context: RequestAccessContext) {
@@ -82,11 +82,13 @@ export function canDownloadExamFile(context: RequestAccessContext) {
   }
   if (context.role === ROLES.AV_UNIT) {
     return [
+      REQUEST_STATUSES.PENDING_REVIEW,
       REQUEST_STATUSES.CUTTING,
       REQUEST_STATUSES.PRINTING,
       REQUEST_STATUSES.PRINTED,
     ].includes(
       context.status as
+        | typeof REQUEST_STATUSES.PENDING_REVIEW
         | typeof REQUEST_STATUSES.CUTTING
         | typeof REQUEST_STATUSES.PRINTING
         | typeof REQUEST_STATUSES.PRINTED,
@@ -103,10 +105,9 @@ export function canUploadExamFile(
   return (
     context.role === ROLES.AV_UNIT &&
     !context.cancelledAt &&
-    [REQUEST_STATUSES.CUTTING, REQUEST_STATUSES.PRINTING].includes(
+    [REQUEST_STATUSES.CUTTING].includes(
       context.status as
-        | typeof REQUEST_STATUSES.CUTTING
-        | typeof REQUEST_STATUSES.PRINTING,
+        | typeof REQUEST_STATUSES.CUTTING,
     )
   );
 }

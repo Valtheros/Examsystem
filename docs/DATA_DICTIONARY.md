@@ -127,7 +127,7 @@ UQ* = unique ร่วม `(round_id, course_code, group_no)`
 | `exam_date` | DATE | UQ* | No | วันที่สอบ |
 | `starts_at` | TIME | UQ* | No | เวลาเริ่ม |
 | `ends_at` | TIME | CHECK | No | เวลาสิ้นสุดต้องหลังเวลาเริ่ม |
-| `student_count` | INTEGER | CHECK | No | ผู้เข้าสอบในห้อง ≥ 0 |
+| `student_count` | INTEGER | CHECK | Yes | ข้อมูลเดิมเท่านั้น ไม่ใช้เป็นจำนวนข้อสอบในคำขอใหม่ |
 | `note` | TEXT |  | Yes | หมายเหตุ |
 | `created_at` | TIMESTAMPTZ |  | No | วันที่สร้าง |
 | `updated_at` | TIMESTAMPTZ |  | No | วันที่แก้ไข |
@@ -143,8 +143,9 @@ UQ* = unique ร่วม `(subject_id, room_id, exam_date, starts_at)` ตา�
 | `subject_id` | UUID | FK → `subjects.id` | No | รายวิชา |
 | `instructor_id` | TEXT | FK → `users.id` | No | อาจารย์ผู้ส่ง |
 | `page_count` | INTEGER | CHECK | No | จำนวนหน้า > 0 |
-| `original_copy_count` | INTEGER | CHECK | No | ต้นฉบับกระดาษ = 1 ชุด |
-| `print_detail` | TEXT |  | Yes | รายละเอียดการพิมพ์ |
+| `original_copy_count` | INTEGER | CHECK | No | ค่าเดิม 1 เพื่อ compatibility ไม่กำหนดให้ส่งกระดาษอีกต่อไป |
+| `print_detail` | TEXT |  | Yes | รายละเอียดข้อความจากระบบเดิม |
+| `submission_form` | JSONB |  | Yes | แบบฟอร์มออนไลน์ตรวจด้วย submissionFormSchema; NULL คือไม่ระบุในระบบเดิม |
 | `status` | `request_status` |  | No | สถานะตาม workflow |
 | `reject_reason` | TEXT |  | Yes | เหตุผลส่งกลับแก้ไข |
 | `submitted_at` | TIMESTAMPTZ |  | Yes | เวลาส่งตรวจล่าสุด |
@@ -168,12 +169,13 @@ UQ* = unique ร่วม `(subject_id, room_id, exam_date, starts_at)` ตา�
 | `exam_date` | DATE |  | No | Snapshot วันที่สอบ |
 | `starts_at` | TIME |  | No | Snapshot เวลาเริ่ม |
 | `ends_at` | TIME |  | No | Snapshot เวลาสิ้นสุด |
-| `student_count` | INTEGER | CHECK | No | ผู้เข้าสอบ ≥ 0 |
+| `student_count` | INTEGER | CHECK | No | ยอดอาจารย์ขอ/ผู้สอบ 1 ชุดต่อคน; ร่างอนุญาต 0 แต่ส่งต้อง > 0 และไม่เกินความจุ |
+| `base_copy_count` | INTEGER | CHECK | No | ยอดหลักหน่วยโสต ≥ 0; ยืนยันแผนต้อง > 0 เริ่มจากยอดอาจารย์ ปรับต้องมีเหตุผล |
 | `reserve_count` | INTEGER | CHECK | No | สำรอง; ค่าเริ่มต้น 1 |
-| `print_count` | INTEGER | CHECK | No | ต้องเท่ากับ student + reserve |
+| `print_count` | INTEGER | CHECK | No | ต้องเท่ากับ base_copy_count + reserve_count |
 | `sender_name` | TEXT |  | No | Snapshot ชื่อผู้ส่ง |
 | `note` | TEXT |  | Yes | หมายเหตุบนใบปะหน้า |
-| `qr_token` | UUID | UQ | No | Token สำหรับหน้าแจกจ่ายที่ต้อง login |
+| `qr_token` | UUID | UQ | No | Legacy เท่านั้น ไม่สร้าง QR/เปิดหน้าสแกนในรุ่นปัจจุบัน |
 | `created_at` | TIMESTAMPTZ |  | No | วันที่ snapshot |
 
 Unique ร่วม `(request_id, exam_room_id)`
@@ -205,6 +207,7 @@ UQ* = unique ร่วม `(request_id, kind, version)`
 | `storage_key` | TEXT | UQ | No | Object key แยกจากไฟล์ข้อสอบ |
 | `sha256` | TEXT |  | No | SHA-256 ของ PDF |
 | `version` | INTEGER | UQ* | No | เวอร์ชัน |
+| `print_revision` | INTEGER |  | Yes | รุ่นแผนพิมพ์ที่สร้าง PDF; NULL สำหรับประวัติเดิม |
 | `generated_by` | TEXT | FK → `users.id` | No | หน่วยโสตผู้สร้าง |
 | `generated_at` | TIMESTAMPTZ |  | No | วันที่สร้าง |
 
@@ -216,6 +219,9 @@ UQ* = unique ร่วม `(request_room_id, version)`
 |---|---|---|:---:|---|
 | `id` | UUID | PK | No | รหัสงานพิมพ์ |
 | `request_id` | UUID | FK → `exam_requests.id` | No | คำขอ |
+| `selected_exam_file_id` | UUID | FK → `exam_files.id` | Yes | ไฟล์ที่เลือกสำหรับงานนี้ ต้องอยู่ในคำขอเดียวกัน; NULL ของงานเก่าไม่เดาย้อนหลัง |
+| `revision` | INTEGER |  | No | รุ่นแผน เริ่ม 1 เพิ่มเมื่อไฟล์/จำนวนเปลี่ยน |
+| `confirmed_at` | TIMESTAMPTZ |  | Yes | เวลาหน่วยโสตยืนยันไฟล์และจำนวน; NULL ต้องยืนยันก่อนเริ่ม |
 | `operator_id` | TEXT | FK → `users.id` | No | หน่วยโสตผู้พิมพ์ |
 | `status` | `print_status` |  | No | รอพิมพ์/กำลังพิมพ์/พิมพ์เสร็จแล้ว |
 | `total_copies` | INTEGER | CHECK | No | ผลรวมจำนวนพิมพ์ทุกห้อง |
@@ -225,7 +231,7 @@ UQ* = unique ร่วม `(request_room_id, version)`
 | `created_at` | TIMESTAMPTZ |  | No | วันที่สร้าง |
 | `updated_at` | TIMESTAMPTZ |  | No | วันที่แก้ไข |
 
-### 14. `deliveries` — การส่งมอบจากหน่วยโสตให้เจ้าหน้าที่
+### 14. `deliveries` — ประวัติส่งมอบเดิม (เลิกใช้ในงานใหม่ตั้งแต่ 3 ตุลาคม 2569)
 
 | Column | Type | Key | Null | Description |
 |---|---|---|:---:|---|
@@ -239,7 +245,7 @@ UQ* = unique ร่วม `(request_room_id, version)`
 | `note` | TEXT |  | Yes | หมายเหตุ |
 | `created_at` | TIMESTAMPTZ |  | No | วันที่สร้าง |
 
-### 15. `distributions` — การแจกจ่ายเข้าห้องสอบ
+### 15. `distributions` — ประวัติแจกจ่ายเดิม (เลิกใช้ในงานใหม่ตั้งแต่ 3 ตุลาคม 2569)
 
 | Column | Type | Key | Null | Description |
 |---|---|---|:---:|---|
@@ -303,8 +309,25 @@ Factory Reset ไม่ลบตารางนี้ และ snapshot ทำ�
 
 ## Enum และสถานะบังคับ
 
-- `request_status`: `ฉบับร่าง`, `รอตรวจสอบ`, `ปฏิเสธ/ส่งกลับแก้ไข`, `ตัดข้อสอบ`, `กำลังพิมพ์`, `พิมพ์เสร็จแล้ว`, `ส่งมอบแล้ว`
+- `request_status`: ฉบับร่าง, รอตรวจสอบ, ปฏิเสธ/ส่งกลับแก้ไข, ตัดข้อสอบ, กำลังพิมพ์, พิมพ์เสร็จแล้ว (จบงาน); ส่งมอบแล้ว คงใน PostgreSQL enum เพื่ออ่านประวัติเดิม แต่ไม่ใช่สถานะที่เปลี่ยนไปได้ในระบบปัจจุบัน
 - `print_status`: `รอพิมพ์`, `กำลังพิมพ์`, `พิมพ์เสร็จแล้ว`
 - `exam_file_kind`: `ต้นฉบับ`, `พร้อมพิมพ์`
 - `notification_type`: `สร้างบัญชี`, `คำขอใหม่`, `ยกเลิกคำขอ`, `รับคำขอ`, `ส่งกลับแก้ไข`, `เริ่มพิมพ์`, `พิมพ์เสร็จ`, `พร้อมส่งมอบ`, `ส่งมอบ`, `รีเซ็ตรหัสผ่าน`
 - `mail_status`: `Pending`, `Sent`, `Failed`
+
+## โครงสร้าง submission_form (migration 0004)
+
+| Field | Type | เงื่อนไขก่อนส่งคำขอ |
+|---|---|---|
+| department | string | สาขาวิชา 1–120 ตัวอักษร |
+| language | string | ไทย / อังกฤษ / ไทยและอังกฤษ |
+| printLayout | string | หน้าเดียว / สองหน้า / Booklet / อื่น ๆ |
+| otherPrintLayout | string | ≤ 200; จำเป็นเมื่อเลือกรูปแบบอื่น ๆ |
+| materials | string[] | อย่างน้อยหนึ่งข้อ; ไม่มี ห้ามเลือกคู่ข้ออื่น |
+| otherMaterials | string | ≤ 300; จำเป็นเมื่อเลือกอุปกรณ์อื่น ๆ |
+| computerAnswerSheet | string | ต้องการ / ไม่ต้องการ |
+| instructions | string | คำอธิบาย ≤ 600 |
+| scheduleType | string | ในตาราง / นอกตาราง |
+| coordinatorPhone | string | เบอร์ติดต่อ 3–60 |
+
+ร่างเก็บข้อมูลไม่ครบได้ แต่ส่งต้องผ่าน schema เดียวกับ UI ใน src/lib/submission-form.ts จำนวนพิมพ์รวมงาน = ผลรวม request_rooms.print_count ใบปะหน้าใช้รุ่นตรงกับ print_jobs.revision ไม่มีจำนวนที่กรอกแยก Migration เติม base_copy_count จาก student_count เดิม ไม่คำนวณยอดรวม/สถานะเก่าใหม่ และไม่เดาว่างานเก่าเคยพิมพ์ไฟล์ใด ตารางทั้งหมดยังคง 18 ตาราง

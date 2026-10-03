@@ -1,14 +1,15 @@
 import "server-only";
 
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
   auditLogs,
   coverSheets,
-  deliveries,
   examFiles,
   examRequests,
+  examRooms,
+  rooms,
   printJobs,
   requestRooms,
   requestStatusHistory,
@@ -21,6 +22,7 @@ import {
 } from "@/lib/constants";
 import { ConflictError } from "@/lib/errors";
 import { assertRequestTransition } from "@/lib/permissions";
+import { submissionFormSchema, validateRequestedRooms } from "@/lib/submission-form";
 
 type TransitionActor = {
   id: string;
@@ -32,8 +34,6 @@ export async function transitionRequest(input: {
   requestId: string;
   toStatus: RequestStatus;
   reason?: string;
-  receiverId?: string;
-  receiverName?: string;
   actor: TransitionActor;
 }) {
   return db.transaction(async (tx) => {
@@ -56,6 +56,11 @@ export async function transitionRequest(input: {
     );
 
     if (input.toStatus === REQUEST_STATUSES.PENDING_REVIEW) {
+      const formResult = submissionFormSchema.safeParse(request.submissionForm);
+      if (!formResult.success) throw new ConflictError("กรุณากรอกแบบฟอร์มส่งข้อสอบให้ครบก่อนส่งตรวจ");
+      const allocations = await tx.select({ examRoomId: requestRooms.examRoomId, count: requestRooms.studentCount, capacity: rooms.capacity }).from(requestRooms)
+        .innerJoin(examRooms, eq(requestRooms.examRoomId, examRooms.id)).innerJoin(rooms, eq(examRooms.roomId, rooms.id)).where(eq(requestRooms.requestId, request.id));
+      validateRequestedRooms(allocations, allocations, true);
       const [file] = await tx
         .select({ id: examFiles.id })
         .from(examFiles)
@@ -69,18 +74,28 @@ export async function transitionRequest(input: {
       if (!file) throw new ConflictError("ต้องอัปโหลดไฟล์ข้อสอบต้นฉบับก่อนส่งตรวจ");
     }
 
+    if (input.toStatus === REQUEST_STATUSES.CUTTING) {
+      const [original] = await tx.select({ id: examFiles.id }).from(examFiles)
+        .where(and(eq(examFiles.requestId, request.id), eq(examFiles.kind, "ต้นฉบับ"))).orderBy(desc(examFiles.version)).limit(1);
+      if (!original) throw new ConflictError("ไม่พบไฟล์ต้นฉบับที่ส่งตรวจ");
+      const [total] = await tx.select({ value: sql<number>`coalesce(sum(${requestRooms.printCount}), 0)::int` }).from(requestRooms).where(eq(requestRooms.requestId, request.id));
+      await tx.insert(printJobs).values({ requestId: request.id, operatorId: input.actor.id, status: "รอพิมพ์", totalCopies: total.value, selectedExamFileId: original.id });
+    }
+
     if (input.toStatus === REQUEST_STATUSES.PRINTING) {
+      const [job] = await tx.select().from(printJobs).where(eq(printJobs.requestId, request.id));
+      if (!job?.confirmedAt || !job.selectedExamFileId) throw new ConflictError("กรุณายืนยันไฟล์และจำนวนในส่วนเตรียมพิมพ์ก่อน");
       const [readyFile] = await tx
         .select({ id: examFiles.id })
         .from(examFiles)
         .where(
           and(
             eq(examFiles.requestId, request.id),
-            eq(examFiles.kind, "พร้อมพิมพ์"),
+            eq(examFiles.id, job.selectedExamFileId),
           ),
         )
         .limit(1);
-      if (!readyFile) throw new ConflictError("ต้องมีไฟล์พร้อมพิมพ์ก่อนเริ่มพิมพ์");
+      if (!readyFile) throw new ConflictError("ไม่พบไฟล์ที่เลือกสำหรับงานพิมพ์นี้");
       const [roomCount] = await tx
         .select({ value: sql<number>`count(*)::int` })
         .from(requestRooms)
@@ -89,9 +104,9 @@ export async function transitionRequest(input: {
         .select({ value: sql<number>`count(distinct ${coverSheets.requestRoomId})::int` })
         .from(coverSheets)
         .innerJoin(requestRooms, eq(coverSheets.requestRoomId, requestRooms.id))
-        .where(eq(requestRooms.requestId, request.id));
+        .where(and(eq(requestRooms.requestId, request.id), eq(coverSheets.printRevision, job.revision)));
       if ((roomCount?.value ?? 0) === 0 || coverCount?.value !== roomCount?.value) {
-        throw new ConflictError("ต้องสร้างใบปะหน้าให้ครบทุกห้องก่อนเริ่มพิมพ์");
+        throw new ConflictError("ต้องสร้างใบปะหน้ารุ่นปัจจุบันให้ครบทุกห้องก่อนเริ่มพิมพ์");
       }
     }
 
@@ -138,20 +153,13 @@ export async function transitionRequest(input: {
         })
         .from(requestRooms)
         .where(eq(requestRooms.requestId, request.id));
-      const existing = await tx
-        .select({ id: printJobs.id })
-        .from(printJobs)
-        .where(eq(printJobs.requestId, request.id))
-        .limit(1);
-      if (!existing.length) {
-        await tx.insert(printJobs).values({
-          requestId: request.id,
+      await tx.update(printJobs).set({
           operatorId: input.actor.id,
           status: "กำลังพิมพ์",
           totalCopies: copyTotal?.value ?? 0,
           startedAt: now,
-        });
-      }
+          updatedAt: now,
+        }).where(eq(printJobs.requestId, request.id));
     }
 
     if (input.toStatus === REQUEST_STATUSES.PRINTED) {
@@ -159,20 +167,6 @@ export async function transitionRequest(input: {
         .update(printJobs)
         .set({ status: "พิมพ์เสร็จแล้ว", completedAt: now, updatedAt: now })
         .where(eq(printJobs.requestId, request.id));
-    }
-
-    if (input.toStatus === REQUEST_STATUSES.DELIVERED) {
-      if (!input.receiverId || !input.receiverName?.trim()) {
-        throw new ConflictError("กรุณาระบุเจ้าหน้าที่ผู้รับมอบ");
-      }
-      await tx.insert(deliveries).values({
-        requestId: request.id,
-        senderId: input.actor.id,
-        receiverId: input.receiverId,
-        receiverNameSnapshot: input.receiverName.trim(),
-        deliveredAt: now,
-        note: input.reason?.trim() || null,
-      });
     }
 
     await tx.insert(requestStatusHistory).values({
@@ -214,7 +208,6 @@ export function statusActionLabel(status: RequestStatus, role: AppRole) {
     [REQUEST_STATUSES.CUTTING]: "รับตัดข้อสอบ",
     [REQUEST_STATUSES.PRINTING]: "เริ่มพิมพ์",
     [REQUEST_STATUSES.PRINTED]: "ยืนยันพิมพ์เสร็จ",
-    [REQUEST_STATUSES.DELIVERED]: "ยืนยันส่งมอบ",
   };
   return labels[status] ?? status;
 }

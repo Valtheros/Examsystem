@@ -1,0 +1,39 @@
+# Local Docker application, reusing compose.yaml's existing database and file volumes.
+# Start: docker compose -f compose.yaml -f compose.app.yaml up -d --build web
+# For a public server use compose.production.yaml with real domains and secrets.
+services:
+  web:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    env_file:
+      - path: .env.app.local
+        required: false
+    environment:
+      DATABASE_URL: postgresql://exam_app:exam_local_password@postgres:5432/examsystem
+      BETTER_AUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      STORAGE_BUCKET: exam-files
+      STORAGE_INTERNAL_ENDPOINT: http://minio:9000
+      STORAGE_PUBLIC_ENDPOINT: http://localhost:9000
+      STORAGE_ACCESS_KEY_ID: minioadmin
+      STORAGE_SECRET_ACCESS_KEY: minioadmin
+      STORAGE_FORCE_PATH_STYLE: "true"
+      MAIL_TRANSPORT: smtp
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      mailpit:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

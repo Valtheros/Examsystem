@@ -1,5 +1,21 @@
 # การตั้งค่าและติดตั้งระบบ
 
+## เครื่องพัฒนาปัจจุบัน — ใช้ข้อมูล Docker เดิม
+
+เว็บล่าสุดเปิดที่ `http://localhost:3000` ใช้ `compose.yaml` ร่วมกับ `compose.app.yaml` ไม่ใช่ production Compose ซึ่งใช้ชื่อ volume ต่างกัน
+
+เปิดผ่าน `http://127.0.0.1:3000` ได้เช่นกัน เมื่อ `BETTER_AUTH_URL` เป็น loopback ระบบอนุญาต localhost และ 127.0.0.1 เฉพาะ protocol/port เดียวกัน ส่วน Auth client ใช้ origin ของหน้าที่เปิดเพื่อให้ session cookie อยู่บน hostname นั้น หากใช้โดเมน production จะอนุญาตเฉพาะ origin ที่ตั้งไว้
+
+```powershell
+# ตั้ง DATABASE_URL และ DIRECT_DATABASE_URL ให้ชี้ PostgreSQL เดิมก่อน migrate
+npm run db:migrate
+docker compose -f compose.yaml -f compose.app.yaml up -d --build web
+```
+
+ไม่ใช้ `down -v` และไม่ seed/reset ฐานข้อมูลเดิม การตั้งค่านี้ใช้บัญชี Docker local เดิม, Mailpit สำหรับอีเมล และ bind เว็บเฉพาะ 127.0.0.1 ยังไม่ใช่การเปิดให้ใช้งานจากอินเทอร์เน็ต ตัวเลือก `.env.app.local` ใช้ตั้ง BETTER_AUTH_SECRET เฉพาะเครื่องได้ (ห้าม commit; เปลี่ยน secret ทำให้ต้อง login ใหม่) ไม่โหลด `.env.local` ของเครื่องเข้า container เพราะอาจมี token ของบริการอื่นที่ไม่เกี่ยวข้อง
+
+ก่อนย้ายไปเครื่องเซิร์ฟเวอร์ ให้กำหนดโดเมน TLS, secret จริง, บัญชี MinIO จำกัดสิทธิ์ และย้ายข้อมูล/ไฟล์จาก volumes เดิมอย่างชัดเจนตามขั้นตอนด้านล่าง ห้ามเปิด production Compose ใหม่แล้วเข้าใจว่าใช้ข้อมูลชุดเดิมโดยอัตโนมัติ
+
 Production รันด้วย Docker Compose ทั้งระบบ: Next.js, PostgreSQL, MinIO และ Caddy อยู่บนเครื่องเซิร์ฟเวอร์เดียวกัน ระบบไม่ใช้ Supabase, Cloudflare R2 หรือ Vercel
 
 ## 1. สิ่งที่ต้องเตรียมบนเซิร์ฟเวอร์

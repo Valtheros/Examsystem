@@ -86,7 +86,6 @@ export const examRoomSchema = z
     examDate: z.string().date(),
     startsAt: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
     endsAt: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-    studentCount: z.coerce.number().int().min(0).max(10000),
     note: z.string().trim().max(1000).optional().or(z.literal("")),
   })
   .refine((value) => value.startsAt < value.endsAt, {
@@ -97,9 +96,6 @@ export const examRoomSchema = z
 export const examRequestSchema = z.object({
   subjectId: z.uuid(),
   pageCount: z.coerce.number().int().min(1).max(1000),
-  originalCopyCount: z.coerce.number().int().refine((value) => value === 1, {
-    message: "ต้นฉบับกระดาษต้องเป็น 1 ชุด",
-  }),
   printDetail: z.string().trim().max(5000).optional().or(z.literal("")),
 });
 
@@ -111,7 +107,6 @@ export const transitionSchema = z.object({
     REQUEST_STATUSES.CUTTING,
     REQUEST_STATUSES.PRINTING,
     REQUEST_STATUSES.PRINTED,
-    REQUEST_STATUSES.DELIVERED,
   ]),
   reason: z.string().trim().max(2000).optional().or(z.literal("")),
 });

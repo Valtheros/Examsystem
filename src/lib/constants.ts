@@ -18,11 +18,12 @@ export const REQUEST_STATUSES = {
   CUTTING: "ตัดข้อสอบ",
   PRINTING: "กำลังพิมพ์",
   PRINTED: "พิมพ์เสร็จแล้ว",
-  DELIVERED: "ส่งมอบแล้ว",
 } as const;
 
+// Kept only for reading historical rows. New work ends at PRINTED.
+export const LEGACY_DELIVERED_STATUS = "ส่งมอบแล้ว" as const;
 export type RequestStatus =
-  (typeof REQUEST_STATUSES)[keyof typeof REQUEST_STATUSES];
+  (typeof REQUEST_STATUSES)[keyof typeof REQUEST_STATUSES] | typeof LEGACY_DELIVERED_STATUS;
 
 export const MAX_EXAM_FILE_BYTES = 100 * 1024 * 1024;
 export const UPLOAD_URL_EXPIRES_SECONDS = 5 * 60;
@@ -33,9 +34,9 @@ export const BANGKOK_TIME_ZONE = "Asia/Bangkok";
 
 export const ROLE_LABELS: Record<AppRole, string> = {
   [ROLES.ADMIN]: "จัดการผู้ใช้และตรวจสอบระบบ",
-  [ROLES.OFFICER]: "จัดการรอบสอบ ตารางสอบ และการแจกจ่าย",
+  [ROLES.OFFICER]: "จัดการรอบสอบ รายวิชา ห้อง และตารางสอบ",
   [ROLES.INSTRUCTOR]: "ส่งต้นฉบับและติดตามคำขอของตนเอง",
-  [ROLES.AV_UNIT]: "ตรวจ ตัด พิมพ์ และส่งมอบข้อสอบ",
+  [ROLES.AV_UNIT]: "ตรวจข้อสอบ เตรียมพิมพ์ และยืนยันพิมพ์เสร็จ",
 };
 
 export function isAppRole(value: unknown): value is AppRole {

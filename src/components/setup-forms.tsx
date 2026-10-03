@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 import { assignExamRoomAction, createExamRoundAction, createRoomAction, createSubjectAction } from "@/actions/setup";
 import { initialActionState } from "@/actions/types";
@@ -15,10 +15,12 @@ type Option = { id: string; label: string };
 
 export function ExamRoundForm() {
   const [state, action] = useActionState(createExamRoundAction, initialActionState);
+  const [roundType, setRoundType] = useState("กลางภาค");
   return (
     <form action={action} className="grid gap-4 sm:grid-cols-2">
       <div className="sm:col-span-2"><ActionMessage state={state} /></div>
-      <div className="space-y-2"><Label htmlFor="name">ชื่อรอบสอบ</Label><Input id="name" name="name" placeholder="สอบกลางภาค" required /></div>
+      <div className="space-y-2"><Label htmlFor="roundType">รอบสอบ</Label><Select value={roundType} onValueChange={setRoundType}><SelectTrigger id="roundType"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="กลางภาค">กลางภาค</SelectItem><SelectItem value="ปลายภาค">ปลายภาค</SelectItem><SelectItem value="other">รอบสอบอื่น</SelectItem></SelectContent></Select></div>
+      {roundType === "other" ? <div className="space-y-2"><Label htmlFor="name">ชื่อรอบสอบอื่น</Label><Input id="name" name="name" placeholder="เช่น สอบชดเชย" maxLength={100} required /></div> : <input type="hidden" name="name" value={roundType} />}
       <div className="space-y-2"><Label htmlFor="academicYear">ปีการศึกษา</Label><Input id="academicYear" name="academicYear" placeholder="2569" required /></div>
       <div className="space-y-2"><Label htmlFor="semester">ภาคการศึกษา</Label><Input id="semester" name="semester" placeholder="1" required /></div>
       <div />
@@ -43,45 +45,49 @@ export function RoomForm() {
   );
 }
 
-export function SubjectForm({ rounds, instructors }: { rounds: Option[]; instructors: Option[] }) {
+export function SubjectForm({ rounds, instructors, initial }: { rounds: Option[]; instructors: Option[]; initial?: { id: string; roundId: string; instructorId: string; courseCode: string; courseName: string; groupNo: string } }) {
   const [state, action] = useActionState(createSubjectAction, initialActionState);
+  if (!rounds.length || !instructors.length) return <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{!rounds.length ? "กรุณาสร้างรอบสอบที่หน้า รอบสอบ ก่อนเพิ่มรายวิชา" : "ยังไม่มีอาจารย์ที่เปิดใช้งาน กรุณาให้ผู้ดูแลระบบสร้างบัญชีอาจารย์ก่อน"}</p>;
   return (
     <form action={action} className="grid gap-4 sm:grid-cols-2">
       <div className="sm:col-span-2"><ActionMessage state={state} /></div>
-      <SelectField name="roundId" label="รอบสอบ" options={rounds} />
-      <SelectField name="instructorId" label="อาจารย์ผู้รับผิดชอบ" options={instructors} />
-      <div className="space-y-2"><Label htmlFor="courseCode">รหัสวิชา</Label><Input id="courseCode" name="courseCode" required /></div>
-      <div className="space-y-2"><Label htmlFor="courseName">ชื่อวิชา</Label><Input id="courseName" name="courseName" required /></div>
-      <div className="space-y-2"><Label htmlFor="groupNo">กลุ่มเรียน</Label><Input id="groupNo" name="groupNo" required /></div>
-      <div className="sm:col-span-2"><SubmitButton>เพิ่มรายวิชา</SubmitButton></div>
+      <input type="hidden" name="editSubjectId" value={initial?.id ?? ""} />
+      <SelectField name="roundId" label="รอบสอบ" options={rounds} defaultValue={initial?.roundId} />
+      <SelectField name="instructorId" label="อาจารย์ผู้รับผิดชอบ" options={instructors} defaultValue={initial?.instructorId} />
+      <div className="space-y-2"><Label htmlFor="courseCode">รหัสวิชา</Label><Input id="courseCode" name="courseCode" defaultValue={initial?.courseCode} required /></div>
+      <div className="space-y-2"><Label htmlFor="courseName">ชื่อวิชา</Label><Input id="courseName" name="courseName" defaultValue={initial?.courseName} required /></div>
+      <div className="space-y-2"><Label htmlFor="groupNo">กลุ่มเรียน</Label><Input id="groupNo" name="groupNo" defaultValue={initial?.groupNo} required /></div>
+      <div className="sm:col-span-2"><SubmitButton>{initial ? "บันทึกแก้ไขรายวิชา" : "เพิ่มรายวิชา"}</SubmitButton></div>
     </form>
   );
 }
 
-export function ExamRoomForm({ subjects, rooms }: { subjects: Option[]; rooms: Option[] }) {
+export function ExamRoomForm({ subjects, rooms, initial }: { subjects: Option[]; rooms: Option[]; initial?: { id: string; subjectId: string; roomId: string; examDate: string; startsAt: string; endsAt: string; note: string | null } }) {
   const [state, action] = useActionState(assignExamRoomAction, initialActionState);
+  if (!subjects.length || !rooms.length) return <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{!subjects.length ? "กรุณาเพิ่มรายวิชาในรอบสอบที่เปิดอยู่ก่อนจัดตารางสอบ" : "กรุณาเพิ่มห้องที่หน้า ห้องสอบ ก่อนจัดตารางสอบ"}</p>;
   return (
     <form action={action} className="grid gap-4 sm:grid-cols-2">
       <div className="sm:col-span-2"><ActionMessage state={state} /></div>
-      <SelectField name="subjectId" label="รายวิชา" options={subjects} />
-      <SelectField name="roomId" label="ห้องสอบ" options={rooms} />
-      <div className="space-y-2"><Label htmlFor="examDate">วันที่สอบ</Label><Input id="examDate" name="examDate" type="date" required /></div>
+      <input type="hidden" name="examRoomId" value={initial?.id ?? ""} />
+      <SelectField name="subjectId" label="รายวิชา" options={subjects} defaultValue={initial?.subjectId} />
+      <SelectField name="roomId" label="ห้องสอบ" options={rooms} defaultValue={initial?.roomId} />
+      <div className="space-y-2"><Label htmlFor="examDate">วันที่สอบ</Label><Input id="examDate" name="examDate" type="date" defaultValue={initial?.examDate} required /></div>
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2"><Label htmlFor="startsAt">เริ่ม</Label><Input id="startsAt" name="startsAt" type="time" required /></div>
-        <div className="space-y-2"><Label htmlFor="endsAt">สิ้นสุด</Label><Input id="endsAt" name="endsAt" type="time" required /></div>
+        <div className="space-y-2"><Label htmlFor="startsAt">เริ่ม</Label><Input id="startsAt" name="startsAt" type="time" defaultValue={initial?.startsAt.slice(0, 5)} required /></div>
+        <div className="space-y-2"><Label htmlFor="endsAt">สิ้นสุด</Label><Input id="endsAt" name="endsAt" type="time" defaultValue={initial?.endsAt.slice(0, 5)} required /></div>
       </div>
-      <div className="space-y-2"><Label htmlFor="studentCount">ผู้เข้าสอบห้องนี้</Label><Input id="studentCount" name="studentCount" type="number" min={0} required /></div>
-      <div className="space-y-2 sm:col-span-2"><Label htmlFor="note">หมายเหตุบนใบปะหน้า</Label><Textarea id="note" name="note" /></div>
+      <p className="text-sm text-muted-foreground sm:col-span-2">เจ้าหน้าที่จัดห้องและเวลา ส่วนจำนวนชุดข้อสอบให้อาจารย์กรอกเมื่อส่งข้อสอบ</p>
+      <div className="space-y-2 sm:col-span-2"><Label htmlFor="note">หมายเหตุบนใบปะหน้า</Label><Textarea id="note" name="note" defaultValue={initial?.note ?? ""} /></div>
       <div className="sm:col-span-2"><SubmitButton>บันทึกตารางสอบ</SubmitButton></div>
     </form>
   );
 }
 
-function SelectField({ name, label, options }: { name: string; label: string; options: Option[] }) {
+function SelectField({ name, label, options, defaultValue }: { name: string; label: string; options: Option[]; defaultValue?: string }) {
   return (
-    <div className="space-y-2">
+    <div className="min-w-0 space-y-2">
       <Label htmlFor={name}>{label}</Label>
-      <Select name={name} required>
+      <Select name={name} required defaultValue={defaultValue}>
         <SelectTrigger id={name}><SelectValue placeholder={`เลือก${label}`} /></SelectTrigger>
         <SelectContent>{options.map((option) => <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>)}</SelectContent>
       </Select>

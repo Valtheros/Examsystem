@@ -1,4 +1,6 @@
-import { ilike, or, desc } from "drizzle-orm";
+import { and, eq, ilike, or, desc } from "drizzle-orm";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { Search, ShieldCheck, UserPlus } from "lucide-react";
 
 import { setUserActiveAction } from "@/actions/admin";
@@ -12,15 +14,17 @@ import { db } from "@/db";
 import { user } from "@/db/schema";
 import { ROLES } from "@/lib/constants";
 import { requirePageRole } from "@/lib/session";
+import { ImpersonateButton } from "@/components/impersonation";
+import { impersonationBlockReason } from "@/lib/impersonation-policy";
 
-export default async function UsersPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+export default async function UsersPage({ searchParams }: { searchParams: Promise<{ q?: string; role?: string }> }) {
   const session = await requirePageRole([ROLES.ADMIN]);
-  const { q = "" } = await searchParams;
+  const { q = "", role = "all" } = await searchParams;
   const query = q.trim();
   const records = await db
     .select()
     .from(user)
-    .where(query ? or(ilike(user.name, `%${query}%`), ilike(user.username, `%${query}%`), ilike(user.email, `%${query}%`)) : undefined)
+    .where(and(query ? or(ilike(user.name, `%${query}%`), ilike(user.username, `%${query}%`), ilike(user.email, `%${query}%`)) : undefined, Object.values(ROLES).some((value) => value === role) ? eq(user.role, role) : undefined))
     .orderBy(desc(user.createdAt));
 
   return (
@@ -33,7 +37,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
       <Card>
         <CardHeader>
           <CardTitle>บัญชีทั้งหมด</CardTitle>
-          <form className="relative mt-3 max-w-md"><Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" /><Input name="q" defaultValue={query} className="pl-9" placeholder="ค้นหาชื่อ Username หรืออีเมล" /></form>
+          <form className="mt-3 flex flex-wrap gap-3"><div className="relative min-w-0 flex-1"><Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" /><Input name="q" aria-label="ค้นหาผู้ใช้" defaultValue={query} className="pl-9" placeholder="ค้นหาชื่อ Username หรืออีเมล" /></div><Select name="role" defaultValue={role}><SelectTrigger aria-label="กรองบทบาท" className="w-44"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">ทุกบทบาท</SelectItem>{Object.values(ROLES).map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select><Button type="submit">ค้นหา</Button></form>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
@@ -44,7 +48,8 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                   <TableCell><p className="font-medium">{record.name}</p><p className="text-xs text-muted-foreground">{record.username} · {record.email}</p></TableCell>
                   <TableCell><Badge variant="secondary">{record.role}</Badge></TableCell>
                   <TableCell>{record.banned ? <Badge variant="destructive">ปิดใช้งาน</Badge> : <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">เปิดใช้งาน</Badge>}</TableCell>
-                  <TableCell className="space-y-3">
+                  <TableCell><details><summary className="cursor-pointer rounded-md px-2 py-2 text-sm font-medium text-primary">จัดการบัญชี</summary><div className="mt-3 space-y-3">
+                    <ImpersonateButton userId={record.id} username={record.username ?? record.name} disabledReason={impersonationBlockReason(record)} />
                     <form action={setUserActiveAction}>
                       <input type="hidden" name="userId" value={record.id} />
                       <input type="hidden" name="active" value={String(record.banned)} />
@@ -52,7 +57,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                     </form>
                     <details><summary className="cursor-pointer text-sm text-primary">แก้ไขข้อมูลและบทบาท</summary><div className="mt-2"><EditUserForm record={record} /></div></details>
                     <details><summary className="cursor-pointer text-sm text-primary">ตั้งรหัสผ่านชั่วคราว</summary><div className="mt-2"><ResetPasswordForm userId={record.id} /></div></details>
-                  </TableCell>
+                  </div></details></TableCell>
                 </TableRow>
               ))}
               {!records.length ? <TableRow><TableCell colSpan={4} className="py-10 text-center text-muted-foreground">ไม่พบผู้ใช้</TableCell></TableRow> : null}

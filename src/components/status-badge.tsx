@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { REQUEST_STATUSES, type RequestStatus } from "@/lib/constants";
+import { LEGACY_DELIVERED_STATUS, REQUEST_STATUSES, type RequestStatus } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 const statusClass: Record<RequestStatus, string> = {
@@ -9,7 +9,7 @@ const statusClass: Record<RequestStatus, string> = {
   [REQUEST_STATUSES.CUTTING]: "bg-violet-50 text-violet-700 border-violet-200",
   [REQUEST_STATUSES.PRINTING]: "bg-blue-50 text-blue-700 border-blue-200",
   [REQUEST_STATUSES.PRINTED]: "bg-cyan-50 text-cyan-800 border-cyan-200",
-  [REQUEST_STATUSES.DELIVERED]: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  [LEGACY_DELIVERED_STATUS]: "bg-emerald-50 text-emerald-700 border-emerald-200",
 };
 
 export function StatusBadge({ status }: { status: RequestStatus }) {

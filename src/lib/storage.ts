@@ -77,10 +77,13 @@ export async function createExamUploadUrl(input: {
     Key: input.storageKey,
     ContentType: "application/pdf",
     ContentLength: input.sizeBytes,
+    ChecksumSHA256: Buffer.from(input.sha256, "hex").toString("base64"),
     Metadata: { sha256: input.sha256.toLowerCase() },
   });
   const url = await getSignedUrl(getSigningStorageClient(), command, {
     expiresIn: UPLOAD_URL_EXPIRES_SECONDS,
+    // Browser sends these as headers; do not also hoist them into the URL.
+    unhoistableHeaders: new Set(["x-amz-meta-sha256", "x-amz-checksum-sha256"]),
   });
   return {
     url,
@@ -88,6 +91,7 @@ export async function createExamUploadUrl(input: {
     headers: {
       "content-type": "application/pdf",
       "x-amz-meta-sha256": input.sha256.toLowerCase(),
+      "x-amz-checksum-sha256": Buffer.from(input.sha256, "hex").toString("base64"),
     },
   };
 }

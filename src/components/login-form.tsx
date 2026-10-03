@@ -21,18 +21,23 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
     setPending(true);
     setError("");
     const data = new FormData(event.currentTarget);
+    try {
     const result = await authClient.signIn.username({
       username: String(data.get("username") ?? ""),
       password: String(data.get("password") ?? ""),
       rememberMe: true,
     });
-    setPending(false);
     if (result.error) {
-      setError(result.error.message || "Username หรือรหัสผ่านไม่ถูกต้อง");
+      setError(result.error.status === 429 ? "เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่แล้วลองอีกครั้ง" : result.error.status === 401 ? "Username หรือรหัสผ่านไม่ถูกต้อง" : result.error.message || "เข้าสู่ระบบไม่สำเร็จ");
       return;
     }
     router.replace(nextPath);
     router.refresh();
+    } catch {
+      setError("เชื่อมต่อระบบไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่");
+    } finally {
+      setPending(false);
+    }
   }
 
   return (

@@ -1,6 +1,7 @@
 export type ActionState = {
   ok: boolean;
   message: string;
+  requestId?: string;
   fieldErrors?: Record<string, string[]>;
 };
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { REQUEST_STATUSES, ROLES } from "@/lib/constants";
+import { LEGACY_DELIVERED_STATUS, REQUEST_STATUSES, ROLES } from "@/lib/constants";
 import {
   assertRequestTransition,
   canDownloadExamFile,
@@ -92,8 +92,14 @@ describe("request authorization", () => {
         role: ROLES.AV_UNIT,
         userId: "av",
         instructorId: "teacher-1",
-        status: REQUEST_STATUSES.DELIVERED,
+        status: LEGACY_DELIVERED_STATUS,
       }),
     ).toBe(false);
+  });
+
+  it("ends at printed and prevents the removed handover transition", () => {
+    expect(() => assertRequestTransition(REQUEST_STATUSES.PRINTING, REQUEST_STATUSES.PRINTED, ROLES.AV_UNIT, false)).not.toThrow();
+    expect(() => assertRequestTransition(REQUEST_STATUSES.PRINTED, LEGACY_DELIVERED_STATUS, ROLES.AV_UNIT, false)).toThrow();
+    expect(() => assertRequestTransition(LEGACY_DELIVERED_STATUS, REQUEST_STATUSES.PRINTING, ROLES.AV_UNIT, false)).toThrow();
   });
 });

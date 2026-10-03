@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { FACTORY_RESET_PHRASE, MAX_EXAM_FILE_BYTES } from "@/lib/constants";
-import { factoryResetSchema, passwordSchema, uploadUrlSchema } from "@/lib/validation";
+import { examRoundSchema, factoryResetSchema, passwordSchema, transitionSchema, uploadUrlSchema } from "@/lib/validation";
 
 describe("security validation", () => {
+  it("accepts standard and custom exam rounds but rejects the removed handover status", () => {
+    for (const name of ["กลางภาค", "ปลายภาค", "สอบชดเชย"]) expect(examRoundSchema.safeParse({ name, academicYear: "2569", semester: "1" }).success).toBe(true);
+    expect(transitionSchema.safeParse({ requestId: "019b2b45-4d7a-7000-8000-000000000001", toStatus: "ส่งมอบแล้ว" }).success).toBe(false);
+  });
   it("enforces a 12-character mixed password", () => {
     expect(passwordSchema.safeParse("short").success).toBe(false);
     expect(passwordSchema.safeParse("StrongPassword123").success).toBe(true);

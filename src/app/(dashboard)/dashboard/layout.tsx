@@ -11,7 +11,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         username={session.user.username}
       />
       <main className="px-4 py-7 sm:px-6 lg:ml-64 lg:px-8 lg:py-9">
-        <div className="mx-auto max-w-7xl">{children}</div>
+        <div className="mx-auto max-w-5xl">{children}</div>
       </main>
     </div>
   );

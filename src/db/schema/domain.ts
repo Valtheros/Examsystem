@@ -16,6 +16,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
+import type { DraftSubmissionForm } from "@/lib/submission-form";
 
 export const appSchema = pgSchema("app");
 
@@ -26,7 +27,7 @@ export const requestStatusEnum = appSchema.enum("request_status", [
   "ตัดข้อสอบ",
   "กำลังพิมพ์",
   "พิมพ์เสร็จแล้ว",
-  "ส่งมอบแล้ว",
+  "ส่งมอบแล้ว", // Historical rows only; active workflow ends at printed.
 ]);
 
 export const printStatusEnum = appSchema.enum("print_status", [
@@ -151,7 +152,7 @@ export const examRooms = appSchema.table(
     examDate: date("exam_date", { mode: "string" }).notNull(),
     startsAt: time("starts_at").notNull(),
     endsAt: time("ends_at").notNull(),
-    studentCount: integer("student_count").notNull(),
+    studentCount: integer("student_count"),
     note: text("note"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -190,6 +191,7 @@ export const examRequests = appSchema.table(
       .references(() => user.id, { onDelete: "restrict" }),
     pageCount: integer("page_count").notNull(),
     originalCopyCount: integer("original_copy_count").notNull().default(1),
+    submissionForm: jsonb("submission_form").$type<DraftSubmissionForm>(),
     printDetail: text("print_detail"),
     status: requestStatusEnum("status").notNull().default("ฉบับร่าง"),
     rejectReason: text("reject_reason"),
@@ -243,10 +245,11 @@ export const requestRooms = appSchema.table(
     endsAt: time("ends_at").notNull(),
     studentCount: integer("student_count").notNull(),
     reserveCount: integer("reserve_count").notNull().default(1),
+    baseCopyCount: integer("base_copy_count").notNull().default(0),
     printCount: integer("print_count").notNull(),
     senderName: text("sender_name").notNull(),
     note: text("note"),
-    qrToken: uuid("qr_token").notNull().defaultRandom().unique(),
+    qrToken: uuid("qr_token").notNull().defaultRandom().unique(), // Legacy column, no QR is generated.
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -261,8 +264,9 @@ export const requestRooms = appSchema.table(
     check("request_rooms_reserve_count_nonnegative", sql`${table.reserveCount} >= 0`),
     check(
       "request_rooms_print_count_consistent",
-      sql`${table.printCount} = ${table.studentCount} + ${table.reserveCount}`,
+      sql`${table.printCount} = ${table.baseCopyCount} + ${table.reserveCount}`,
     ),
+    check("request_rooms_base_nonnegative", sql`${table.baseCopyCount} >= 0`),
   ],
 );
 
@@ -324,6 +328,7 @@ export const coverSheets = appSchema.table(
     generatedBy: text("generated_by")
       .notNull()
       .references(() => user.id, { onDelete: "restrict" }),
+    printRevision: integer("print_revision"),
     generatedAt: timestamp("generated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -352,6 +357,9 @@ export const printJobs = appSchema.table(
       .references(() => user.id, { onDelete: "restrict" }),
     status: printStatusEnum("status").notNull().default("รอพิมพ์"),
     totalCopies: integer("total_copies").notNull(),
+    selectedExamFileId: uuid("selected_exam_file_id").references(() => examFiles.id, { onDelete: "restrict" }),
+    revision: integer("revision").notNull().default(1),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     note: text("note"),
