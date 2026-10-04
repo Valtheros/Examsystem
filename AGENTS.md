@@ -15,6 +15,8 @@
 - Nodemailer ใช้ Gmail OAuth2 บน production และ Mailpit สำหรับ local
 - ไม่ใช้ Supabase, Vercel หรือ Cloudflare R2 ใน production; ฐานข้อมูลและไฟล์อยู่บนเครื่องเซิร์ฟเวอร์ที่รัน Docker
 
+Local Docker quick start: `.env.app.example` -> `.env.app.local` แล้ว `docker compose -f compose.yaml -f compose.app.yaml up -d --build` บริการ setup รัน migration และ `db:seed-admin -- --if-empty` ก่อนเปิด web; ข้าม bootstrap หากมีผู้ดูแลอยู่แล้ว ห้ามเปลี่ยน/รีเซ็ตรหัสผ่านเดิมระหว่างเริ่มระบบ
+
 ## Canonical Roles
 
 ใช้ชื่อเหล่านี้ใน DB, code, UI และเอกสารเท่านั้น:

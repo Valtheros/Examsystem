@@ -1,7 +1,24 @@
 # Local Docker application, reusing compose.yaml's existing database and file volumes.
-# Start: docker compose -f compose.yaml -f compose.app.yaml up -d --build web
+# First clone: copy .env.app.example to .env.app.local and configure the administrator.
+# Start: docker compose -f compose.yaml -f compose.app.yaml up -d --build
 # For a public server use compose.production.yaml with real domains and secrets.
 services:
+  setup:
+    build:
+      context: .
+      target: migrator
+    env_file:
+      - path: .env.app.local
+        required: false
+    environment:
+      DATABASE_URL: postgresql://exam_app:exam_local_password@postgres:5432/examsystem
+      DIRECT_DATABASE_URL: postgresql://exam_app:exam_local_password@postgres:5432/examsystem
+    command: ["/bin/sh", "-ec", "npm run db:migrate && npm run db:seed-admin -- --if-empty"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   web:
     build:
       context: .
@@ -26,10 +43,10 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
-      postgres:
-        condition: service_healthy
-      minio:
-        condition: service_started
+      setup:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
       mailpit:
         condition: service_started
     healthcheck:

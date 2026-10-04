@@ -14,27 +14,41 @@ const required = (name: string) => {
 };
 
 const databaseUrl = required("DIRECT_DATABASE_URL");
-const username = required("BOOTSTRAP_ADMIN_USERNAME").toLowerCase();
-const email = required("BOOTSTRAP_ADMIN_EMAIL").toLowerCase();
-const name = required("BOOTSTRAP_ADMIN_NAME");
-const password = required("BOOTSTRAP_ADMIN_PASSWORD");
-
-if (password.length < 12) {
-  throw new Error("BOOTSTRAP_ADMIN_PASSWORD must have at least 12 characters");
-}
-
 const client = postgres(databaseUrl, { max: 1, prepare: false });
 const database = drizzle(client);
 
-try {
+async function seedAdministrator() {
+  // Automatic Docker setup must never replace an existing administrator.
+  if (process.argv.includes("--if-empty")) {
+    const [administrator] = await database
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.role, "ผู้ดูแลระบบ"))
+      .limit(1);
+    if (administrator) {
+      console.log("An administrator already exists; bootstrap skipped.");
+      return;
+    }
+  }
+
+  const username = required("BOOTSTRAP_ADMIN_USERNAME").toLowerCase();
   const [existing] = await database
-    .select({ id: user.id })
+    .select({ id: user.id, role: user.role })
     .from(user)
     .where(eq(user.username, username))
     .limit(1);
   if (existing) {
+    if (existing.role !== "ผู้ดูแลระบบ") {
+      throw new Error("BOOTSTRAP_ADMIN_USERNAME belongs to a non-administrator account");
+    }
     console.log(`Administrator ${username} already exists; no changes made.`);
   } else {
+    const email = required("BOOTSTRAP_ADMIN_EMAIL").toLowerCase();
+    const name = required("BOOTSTRAP_ADMIN_NAME");
+    const password = required("BOOTSTRAP_ADMIN_PASSWORD");
+    if (password.length < 12) {
+      throw new Error("BOOTSTRAP_ADMIN_PASSWORD must have at least 12 characters");
+    }
     const id = randomUUID();
     const passwordHash = await hashPassword(password);
     await database.transaction(async (tx) => {
@@ -60,6 +74,10 @@ try {
     });
     console.log(`Administrator ${username} created. Password was not printed.`);
   }
+}
+
+try {
+  await seedAdministrator();
 } finally {
   await client.end();
 }
