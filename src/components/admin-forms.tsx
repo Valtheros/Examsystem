@@ -56,7 +56,7 @@ export function CreateUserForm() {
 export function ResetPasswordForm({ userId }: { userId: string }) {
   const [state, action] = useActionState(resetUserPasswordAction, initialActionState);
   return (
-    <form action={action} className="space-y-3 rounded-lg border bg-muted/30 p-3">
+    <form action={action} className="space-y-3 border-t py-4">
       <input type="hidden" name="userId" value={userId} />
       <ActionMessage state={state} />
       <Label htmlFor={`password-${userId}`}>รหัสผ่านชั่วคราวใหม่</Label>
@@ -73,7 +73,7 @@ export function EditUserForm({
 }) {
   const [state, action] = useActionState(updateUserAction, initialActionState);
   return (
-    <form action={action} className="grid gap-3 rounded-lg border bg-muted/30 p-3 sm:grid-cols-2">
+    <form action={action} className="grid gap-4 border-t py-4 sm:grid-cols-2">
       <input type="hidden" name="userId" value={record.id} />
       <div className="sm:col-span-2"><ActionMessage state={state} /></div>
       <div className="space-y-2">

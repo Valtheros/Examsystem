@@ -13,9 +13,9 @@ import { Label } from "@/components/ui/label";
 export function ChangePasswordForm() {
   const [state, action] = useActionState(changeInitialPasswordAction, initialActionState);
   return (
-    <Card className="w-full max-w-lg shadow-xl">
+    <Card className="w-full max-w-lg border-0">
       <CardHeader>
-        <CardTitle>ตั้งรหัสผ่านส่วนตัว</CardTitle>
+        <CardTitle className="text-2xl">ตั้งรหัสผ่านส่วนตัว</CardTitle>
         <CardDescription>
           นี่คือการเข้าสู่ระบบครั้งแรก กรุณาเปลี่ยนรหัสผ่านชั่วคราวก่อนใช้งานระบบ
         </CardDescription>

@@ -1,6 +1,6 @@
 # Data Dictionary — ระบบจัดพิมพ์ข้อสอบ
 
-เอกสารนี้ตรงกับ Drizzle schema และ migration ปัจจุบัน ฐานข้อมูลเป็น PostgreSQL มี 18 ตารางใน 2 schema เวลาใช้ `TIMESTAMPTZ` เก็บเป็น UTC และแปลงเป็น `Asia/Bangkok` ตอนแสดงผล
+เอกสารนี้ตรงกับ Drizzle schema และ migration ปัจจุบัน ฐานข้อมูลเป็น PostgreSQL มี 16 ตารางของระบบใน 2 schema (`better_auth` 4 / `app` 12) เวลาใช้ `TIMESTAMPTZ` เก็บเป็น UTC และแปลงเป็น `Asia/Bangkok` ตอนแสดงผล ตารางภายใน `drizzle.__drizzle_migrations` ใช้ติดตาม migration ต้องเก็บไว้และไม่นับรวมใน 16 ตารางนี้
 
 สัญลักษณ์: PK = Primary Key, FK = Foreign Key, UQ = Unique, NN = Not Null
 
@@ -70,7 +70,7 @@
 | `created_at` | TIMESTAMPTZ |  | No | วันที่สร้าง |
 | `updated_at` | TIMESTAMPTZ |  | No | วันที่แก้ไข |
 
-## Schema `app` (14 ตาราง)
+## Schema `app` (12 ตาราง)
 
 ### 5. `exam_rounds` — รอบสอบ
 
@@ -231,32 +231,7 @@ UQ* = unique ร่วม `(request_room_id, version)`
 | `created_at` | TIMESTAMPTZ |  | No | วันที่สร้าง |
 | `updated_at` | TIMESTAMPTZ |  | No | วันที่แก้ไข |
 
-### 14. `deliveries` — ประวัติส่งมอบเดิม (เลิกใช้ในงานใหม่ตั้งแต่ 3 ตุลาคม 2569)
-
-| Column | Type | Key | Null | Description |
-|---|---|---|:---:|---|
-| `id` | UUID | PK | No | รหัสส่งมอบ |
-| `request_id` | UUID | FK/UQ → `exam_requests.id` | No | หนึ่งคำขอมีการส่งมอบหลักหนึ่งรายการ |
-| `sender_id` | TEXT | FK → `users.id` | No | หน่วยโสตผู้ส่ง |
-| `receiver_id` | TEXT | FK → `users.id` | No | เจ้าหน้าที่ผู้รับ |
-| `receiver_name_snapshot` | TEXT |  | No | ชื่อผู้รับ ณ ตอนส่งมอบ |
-| `signature_storage_key` | TEXT |  | Yes | Object key ลายเซ็นถ้ามี |
-| `delivered_at` | TIMESTAMPTZ |  | No | เวลาส่งมอบ |
-| `note` | TEXT |  | Yes | หมายเหตุ |
-| `created_at` | TIMESTAMPTZ |  | No | วันที่สร้าง |
-
-### 15. `distributions` — ประวัติแจกจ่ายเดิม (เลิกใช้ในงานใหม่ตั้งแต่ 3 ตุลาคม 2569)
-
-| Column | Type | Key | Null | Description |
-|---|---|---|:---:|---|
-| `id` | UUID | PK | No | รหัสแจกจ่าย |
-| `delivery_id` | UUID | FK → `deliveries.id` | No | รายการส่งมอบ |
-| `request_room_id` | UUID | FK/UQ → `request_rooms.id` | No | ห้องที่แจก; บันทึกซ้ำไม่ได้ |
-| `distributed_by` | TEXT | FK → `users.id` | No | เจ้าหน้าที่ผู้แจก |
-| `distributed_at` | TIMESTAMPTZ |  | No | เวลาแจก |
-| `note` | TEXT |  | Yes | หมายเหตุ |
-
-### 16. `notifications` — คิวและผลการส่งอีเมล
+### 14. `notifications` — คิวและผลการส่งอีเมล
 
 | Column | Type | Key | Null | Description |
 |---|---|---|:---:|---|
@@ -275,7 +250,7 @@ UQ* = unique ร่วม `(request_room_id, version)`
 
 ไม่มี `read_at` หรือสถานะอ่านแล้ว เพราะระบบยืนยันได้เฉพาะผลการส่ง ไม่ใช่การเปิดอีเมล
 
-### 17. `request_status_history` — ประวัติสถานะคำขอ
+### 15. `request_status_history` — ประวัติสถานะคำขอ
 
 | Column | Type | Key | Null | Description |
 |---|---|---|:---:|---|
@@ -289,7 +264,7 @@ UQ* = unique ร่วม `(request_room_id, version)`
 | `reason` | TEXT |  | Yes | เหตุผล/หมายเหตุ |
 | `created_at` | TIMESTAMPTZ |  | No | เวลาเปลี่ยนสถานะ |
 
-### 18. `audit_logs` — บันทึกตรวจสอบย้อนหลัง
+### 16. `audit_logs` — บันทึกตรวจสอบย้อนหลัง
 
 | Column | Type | Key | Null | Description |
 |---|---|---|:---:|---|
@@ -306,6 +281,8 @@ UQ* = unique ร่วม `(request_room_id, version)`
 | `created_at` | TIMESTAMPTZ |  | No | เวลาเกิดเหตุการณ์ |
 
 Factory Reset ไม่ลบตารางนี้ และ snapshot ทำให้ประวัติยังอ่านได้หลังบัญชีต้นทางถูกลบ
+
+Migration `0005_retire_delivery_distribution` ย้ายประวัติจาก `deliveries` และ `distributions` (ถ้ามี) เข้า `audit_logs` ก่อนลบสองตาราง โดยใช้ action `LEGACY_DELIVERY_ARCHIVED` / `LEGACY_DISTRIBUTION_ARCHIVED` และ target เป็นคำขอ เก็บแถวเดิมทั้งหมดใน `metadata.legacy_record` พร้อมชื่อบัญชี/บทบาทของผู้เกี่ยวข้อง ตารางต้นทาง รุ่น migration และเวลา archive ส่วน `created_at` คงเวลาของเหตุการณ์เดิม ไม่ลบไฟล์ลายเซ็นใน storage
 
 ## Enum และสถานะบังคับ
 
@@ -330,4 +307,4 @@ Factory Reset ไม่ลบตารางนี้ และ snapshot ทำ�
 | scheduleType | string | ในตาราง / นอกตาราง |
 | coordinatorPhone | string | เบอร์ติดต่อ 3–60 |
 
-ร่างเก็บข้อมูลไม่ครบได้ แต่ส่งต้องผ่าน schema เดียวกับ UI ใน src/lib/submission-form.ts จำนวนพิมพ์รวมงาน = ผลรวม request_rooms.print_count ใบปะหน้าใช้รุ่นตรงกับ print_jobs.revision ไม่มีจำนวนที่กรอกแยก Migration เติม base_copy_count จาก student_count เดิม ไม่คำนวณยอดรวม/สถานะเก่าใหม่ และไม่เดาว่างานเก่าเคยพิมพ์ไฟล์ใด ตารางทั้งหมดยังคง 18 ตาราง
+ร่างเก็บข้อมูลไม่ครบได้ แต่ส่งต้องผ่าน schema เดียวกับ UI ใน src/lib/submission-form.ts จำนวนพิมพ์รวมงาน = ผลรวม request_rooms.print_count ใบปะหน้าใช้รุ่นตรงกับ print_jobs.revision ไม่มีจำนวนที่กรอกแยก Migration 0004 เติม base_copy_count จาก student_count เดิม ไม่คำนวณยอดรวม/สถานะเก่าใหม่ และไม่เดาว่างานเก่าเคยพิมพ์ไฟล์ใด หลัง migration 0005 เหลือ 16 ตารางของระบบ

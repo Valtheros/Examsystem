@@ -11,7 +11,11 @@ test("four roles: accounts → two rooms → form/PDF → rework → quantities/
   const browserErrors: string[] = [];
   page.on("pageerror", error => browserErrors.push(error.message));
   page.on("dialog", async dialog => { browserErrors.push("native dialog"); await dialog.dismiss(); });
-  const logout = async () => { await page.getByRole("button", { name: "ออกจากระบบ", exact: true }).first().click(); };
+  const logout = async () => {
+    await page.getByRole("button", { name: "ออกจากระบบ", exact: true }).first().click();
+    // Wait for sign-out and navigation before opening another account's login page.
+    await expect(page).toHaveURL(/\/login$/);
+  };
   const login = async (username: string, password = process.env.REVIEW_PASSWORD!, initial = false) => {
     await page.goto("/login");
     await page.getByLabel("Username", { exact: true }).fill(username);
@@ -108,13 +112,18 @@ test("four roles: accounts → two rooms → form/PDF → rework → quantities/
   await page.getByRole("button", { name: "ส่งกลับให้อาจารย์แก้ไข" }).click();
   await expect(page.getByText("ปฏิเสธ/ส่งกลับแก้ไข", { exact: true }).first()).toBeVisible();
   await logout(); await login(teacher, personal); await page.goto(requestUrl);
+  await expect(page.getByLabel("ไฟล์ข้อสอบ PDF (สูงสุด 100 MB)", { exact: true })).toBeEnabled();
   await page.getByLabel("ไฟล์ข้อสอบ PDF (สูงสุด 100 MB)", { exact: true }).setInputFiles({ name: "workflow-v2.pdf", mimeType: "application/pdf", buffer });
+  await expect(page.getByText("ไฟล์ที่เลือก: workflow-v2.pdf", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "ถัดไป: ตรวจทาน", exact: true }).click();
+  await expect(page.getByText(/ข้อสอบ .*workflow-v2\.pdf/)).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "ยืนยันส่งข้อสอบให้หน่วยโสต" }).click();
+  // The submit button changes to a pending label immediately; wait for actual completion.
+  await expect(page.getByRole("button", { name: "กำลังส่ง...", exact: true })).toHaveCount(0, { timeout: 45_000 });
   await expect(page.getByRole("button", { name: "ยืนยันส่งข้อสอบให้หน่วยโสต" })).toHaveCount(0);
   await logout(); await login("review.print"); await page.goto(requestUrl);
   await page.getByRole("button", { name: "รับงานและเตรียมพิมพ์", exact: true }).click();
-  await expect(page.getByRole("combobox", { name: "ไฟล์ที่ใช้พิมพ์" })).toContainText("workflow-v2.pdf");
+  await expect(page.getByRole("combobox", { name: "ไฟล์ที่ใช้พิมพ์" })).toContainText("workflow-v2.pdf", { timeout: 45_000 });
   await page.getByRole("button", { name: "ยืนยันไฟล์และจำนวนพิมพ์", exact: true }).click();
   await expect(page.getByRole("button", { name: "สร้างใบปะหน้าทุกห้อง" })).toBeEnabled();
   await page.getByRole("button", { name: "สร้างใบปะหน้าทุกห้อง" }).click();
@@ -133,6 +142,7 @@ test("four roles: accounts → two rooms → form/PDF → rework → quantities/
   await page.getByRole("button", { name: "เริ่มพิมพ์", exact: true }).click();
   await expect(page.getByRole("button", { name: "ยืนยันไฟล์และจำนวนพิมพ์", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "ยืนยันพิมพ์เสร็จ", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "พิมพ์เสร็จแล้ว · จบงานในระบบ" })).toBeVisible({ timeout: 45_000 });
   await expect(page.getByTestId("current-task").getByRole("link")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "สร้างใบปะหน้าทุกห้อง" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "พิมพ์เสร็จแล้ว · จบงานในระบบ" })).toBeVisible();

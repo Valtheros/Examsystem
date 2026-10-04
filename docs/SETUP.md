@@ -18,6 +18,25 @@ docker compose -f compose.yaml -f compose.app.yaml up -d --build web
 
 Production รันด้วย Docker Compose ทั้งระบบ: Next.js, PostgreSQL, MinIO และ Caddy อยู่บนเครื่องเซิร์ฟเวอร์เดียวกัน ระบบไม่ใช้ Supabase, Cloudflare R2 หรือ Vercel
 
+## หน้าเว็บดูฐานข้อมูลในเครื่อง (Drizzle Studio)
+
+PostgreSQL ที่พอร์ต 5432 เป็น database protocol ไม่ใช่ HTTP จึงเปิด `http://localhost:5432` ในเบราว์เซอร์ไม่ได้ ใช้ Drizzle Studio ที่มีอยู่แล้วในโปรเจกต์ ไม่ต้องย้าย ORM ไป Prisma หรือสร้างหน้า database ใน Next.js
+
+```powershell
+cd D:\codex\se\Examsystem
+npm run db:studio
+```
+
+เปิด `https://local.drizzle.studio` โดยต้องเปิด Terminal ที่รันคำสั่งค้างไว้ ตัวเชื่อมต่อทำงานเฉพาะ localhost:4983 ไม่ใช่พอร์ตของเว็บข้อสอบ ไม่ต้องเข้าสู่ระบบด้วย systemadmin
+
+หากค้างที่ Connecting ใน Chrome/Edge ให้เปิด Site information ข้าง URL แล้วอนุญาต **Apps on device / Local network access** สำหรับ `local.drizzle.studio` จากนั้น reload หน้านั้น ไม่ต้องปิดความปลอดภัยของเบราว์เซอร์ทั้งระบบ
+
+เลือก schema `app` เพื่อดูตารางระบบข้อสอบ หรือ `better_auth` เพื่อดูตารางบัญชี แล้วคลิกตารางทางซ้ายเพื่อดูข้อมูลและโครงสร้าง Studio ใช้สิทธิ์ฐานข้อมูลโดยตรงและแก้ไข/ลบได้ การแก้ใน Studio จะข้าม validation, authorization และ Audit Log ของเว็บ อย่าแก้ password hash/session หรือข้อมูลจริงหากไม่ทราบผลกระทบ
+
+`drizzle.config.ts` ใช้ `DIRECT_DATABASE_URL` ก่อน `DATABASE_URL` หากไม่ได้กำหนดจะใช้ PostgreSQL Docker local เดิม อย่าชี้ URL ไปฐานข้อมูลทดสอบหรือฐานข้อมูลอื่นโดยไม่ตั้งใจ ไม่ใช้ `--host 0.0.0.0` และไม่เปิด Studio ต่ออินเทอร์เน็ต หากเซิร์ฟเวอร์อยู่คนละเครื่องให้ใช้ SSH tunnel [เอกสาร Drizzle Studio](https://orm.drizzle.team/docs/drizzle-kit-studio)
+
+ปิดเฉพาะเครื่องมือด้วย Ctrl+C ใน Terminal โดยไม่กระทบเว็บ ฐานข้อมูล หรือไฟล์เดิม Adminer ไม่ได้ใช้แล้วและถูกนำออกจาก Compose
+
 ## 1. สิ่งที่ต้องเตรียมบนเซิร์ฟเวอร์
 
 - Linux server ที่ติดตั้ง Docker Engine และ Docker Compose v2
@@ -109,3 +128,20 @@ npm run dev
 ```
 
 บริการ local: PostgreSQL `5432`, MinIO API `9000`, MinIO Console `9001`, Mailpit SMTP `1025`, Mailpit UI `8025`
+
+## 7. Migration ลดตารางที่เลิกใช้
+
+Migration `0005_retire_delivery_distribution` ทำให้เหลือ 16 ตารางของระบบ (บัญชี 4 / ธุรกิจ 12) โดยย้ายประวัติรับมอบ/แจกจ่ายเข้า Audit Log ก่อนลบ `deliveries` และ `distributions` ทำใน transaction เดียว ไม่ใช้ `CASCADE` หากมี dependency ที่ไม่คาดไว้ migration จะล้มเหลวและย้อนกลับทั้งชุด ไม่ต้อง reset หรือ seed ข้อมูลเดิม
+
+ก่อนอัปเดตควรสำรองข้อมูลและหยุดเฉพาะเว็บชั่วคราว รัน migration ด้วยบัญชีฐานข้อมูลของระบบ แล้วเปิดเว็บรุ่นใหม่โดยใช้ volumes เดิม ห้ามใช้ `docker compose down -v` หรือ `db:push` แทน migration
+
+สำหรับ local ที่ใช้ `compose.yaml` และ `compose.app.yaml`:
+
+```bash
+docker compose -f compose.yaml -f compose.app.yaml build web
+docker compose -f compose.yaml -f compose.app.yaml stop web
+npm run db:migrate
+docker compose -f compose.yaml -f compose.app.yaml up -d --no-deps web
+```
+
+ตรวจว่า `DATABASE_URL` / `DIRECT_DATABASE_URL` ชี้ฐานข้อมูลที่ต้องการก่อนรัน (ค่าเริ่มต้น local ใช้ PostgreSQL Docker บน localhost:5432) ตาราง `drizzle.__drizzle_migrations` เป็น metadata จำเป็นไม่นับรวมใน 16 ตาราง และควรปิด/เปิด `npm run db:studio` ใหม่หลัง schema เปลี่ยน

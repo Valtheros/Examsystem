@@ -3,13 +3,13 @@ import { LEGACY_DELIVERED_STATUS, REQUEST_STATUSES, type RequestStatus } from "@
 import { cn } from "@/lib/utils";
 
 const statusClass: Record<RequestStatus, string> = {
-  [REQUEST_STATUSES.DRAFT]: "bg-slate-100 text-slate-700 border-slate-200",
-  [REQUEST_STATUSES.PENDING_REVIEW]: "bg-amber-50 text-amber-800 border-amber-200",
-  [REQUEST_STATUSES.RETURNED]: "bg-red-50 text-red-700 border-red-200",
-  [REQUEST_STATUSES.CUTTING]: "bg-violet-50 text-violet-700 border-violet-200",
-  [REQUEST_STATUSES.PRINTING]: "bg-blue-50 text-blue-700 border-blue-200",
-  [REQUEST_STATUSES.PRINTED]: "bg-cyan-50 text-cyan-800 border-cyan-200",
-  [LEGACY_DELIVERED_STATUS]: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  [REQUEST_STATUSES.DRAFT]: "bg-muted text-muted-foreground border-border",
+  [REQUEST_STATUSES.PENDING_REVIEW]: "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:border-amber-800",
+  [REQUEST_STATUSES.RETURNED]: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-200 dark:border-red-800",
+  [REQUEST_STATUSES.CUTTING]: "bg-secondary text-secondary-foreground border-border",
+  [REQUEST_STATUSES.PRINTING]: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-200 dark:border-blue-800",
+  [REQUEST_STATUSES.PRINTED]: "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-800",
+  [LEGACY_DELIVERED_STATUS]: "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-800",
 };
 
 export function StatusBadge({ status }: { status: RequestStatus }) {

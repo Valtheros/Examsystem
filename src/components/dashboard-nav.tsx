@@ -24,6 +24,8 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/s
 import { authClient } from "@/lib/auth-client";
 import { ROLES, type AppRole } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { Brand } from "@/components/brand";
+import { ThemeToggle } from "@/components/theme-controls";
 
 const allRoles = Object.values(ROLES);
 const items = [
@@ -43,7 +45,7 @@ const items = [
 function NavLinks({ role, onNavigate }: { role: AppRole; onNavigate?: () => void }) {
   const pathname = usePathname();
   return (
-    <nav className="space-y-1">
+    <nav aria-label="เมนูหลัก" className="space-y-1">
       {items
         .filter((item) => (item.roles as readonly AppRole[]).includes(role))
         .map((item) => {
@@ -61,10 +63,10 @@ function NavLinks({ role, onNavigate }: { role: AppRole; onNavigate?: () => void
               onClick={onNavigate}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                "flex min-h-11 items-center gap-3 border-l-2 px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring",
                 active
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                  ? "border-primary bg-accent text-primary"
+                  : "border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground",
               )}
             >
               <Icon className="size-4 shrink-0" />
@@ -74,20 +76,6 @@ function NavLinks({ role, onNavigate }: { role: AppRole; onNavigate?: () => void
           );
         })}
     </nav>
-  );
-}
-
-function Brand() {
-  return (
-    <div className="flex items-center gap-3 px-2">
-      <div className="grid size-10 place-items-center rounded-xl bg-primary text-primary-foreground">
-        <Printer className="size-5" />
-      </div>
-      <div className="min-w-0">
-        <p className="truncate font-semibold">ระบบจัดพิมพ์ข้อสอบ</p>
-        <p className="text-xs text-muted-foreground">คณะวิทยาศาสตร์</p>
-      </div>
-    </div>
   );
 }
 
@@ -110,7 +98,8 @@ export function DashboardNav({
 
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r bg-sidebar/95 p-4 backdrop-blur lg:flex lg:flex-col">
+      <a href="#main-content" className="sr-only fixed left-4 top-4 z-50 bg-background px-4 py-3 text-primary focus:not-sr-only">ข้ามไปเนื้อหาหลัก</a>
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r bg-sidebar p-5 lg:flex lg:flex-col">
         <Brand />
         <div className="mt-8 flex-1 overflow-y-auto">
           <NavLinks role={role} />
@@ -124,7 +113,7 @@ export function DashboardNav({
         </div>
       </aside>
 
-      <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b bg-background/90 px-4 backdrop-blur lg:ml-64 lg:px-8">
+      <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b bg-background px-4 lg:ml-64 lg:px-8">
         <div className="lg:hidden">
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild>
@@ -140,9 +129,10 @@ export function DashboardNav({
             </SheetContent>
           </Sheet>
         </div>
-        <p className="hidden text-sm text-muted-foreground sm:block lg:ml-auto">
-          เข้าสู่ระบบเป็น <span className="font-medium text-foreground">{role}</span>
+        <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">{role}</span>
         </p>
+        <ThemeToggle />
         <Button variant="ghost" size="sm" className="lg:hidden" onClick={signOut}>
           <LogOut className="size-4" /> ออกจากระบบ
         </Button>

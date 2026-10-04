@@ -5,8 +5,6 @@ import {
   account,
   auditLogs,
   coverSheets,
-  deliveries,
-  distributions,
   examFiles,
   examRequests,
   examRooms,
@@ -23,7 +21,7 @@ import {
 } from "@/db/schema";
 
 describe("database contract", () => {
-  it("contains exactly the 18 planned application-managed tables", () => {
+  it("contains exactly the 16 tables needed by the current workflow", () => {
     const names = [
       user,
       session,
@@ -38,13 +36,13 @@ describe("database contract", () => {
       examFiles,
       coverSheets,
       printJobs,
-      deliveries,
-      distributions,
       notifications,
       requestStatusHistory,
       auditLogs,
     ].map(getTableName);
-    expect(names).toHaveLength(18);
-    expect(new Set(names).size).toBe(18);
+    expect(names).toHaveLength(16);
+    expect(new Set(names).size).toBe(16);
+    expect(names).not.toContain("deliveries");
+    expect(names).not.toContain("distributions");
   });
 });

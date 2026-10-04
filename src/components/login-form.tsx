@@ -1,12 +1,11 @@
 "use client";
 
-import { LoaderCircle, LockKeyhole, PrinterCheck } from "lucide-react";
+import { LoaderCircle, LockKeyhole } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
@@ -41,17 +40,9 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
   }
 
   return (
-    <Card className="w-full max-w-md border-primary/10 shadow-2xl shadow-primary/10">
-      <CardHeader className="space-y-4 text-center">
-        <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-primary text-primary-foreground">
-          <PrinterCheck className="size-7" />
-        </div>
-        <div>
-          <CardTitle className="text-2xl">เข้าสู่ระบบ</CardTitle>
-          <CardDescription className="mt-2">ระบบจัดพิมพ์ข้อสอบ คณะวิทยาศาสตร์</CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent>
+    <section className="w-full max-w-md">
+      <h1 className="text-3xl font-semibold">เข้าสู่ระบบ</h1>
+      <p className="mb-8 mt-3 text-muted-foreground">ใช้บัญชีที่ผู้ดูแลระบบสร้างให้</p>
         <form onSubmit={handleSubmit} className="space-y-5">
           {error ? <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
           <div className="space-y-2">
@@ -66,11 +57,10 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
             {pending ? <LoaderCircle className="size-4 animate-spin" /> : <LockKeyhole className="size-4" />}
             {pending ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
           </Button>
-          <p className="text-center text-xs leading-5 text-muted-foreground">
+          <p className="border-t pt-5 text-sm leading-6 text-muted-foreground">
             ไม่มีการสมัครสมาชิกด้วยตนเอง หากยังไม่มีบัญชีให้ติดต่อผู้ดูแลระบบ
           </p>
         </form>
-      </CardContent>
-    </Card>
+    </section>
   );
 }

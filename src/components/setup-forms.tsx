@@ -17,7 +17,7 @@ export function ExamRoundForm() {
   const [state, action] = useActionState(createExamRoundAction, initialActionState);
   const [roundType, setRoundType] = useState("กลางภาค");
   return (
-    <form action={action} className="grid gap-4 sm:grid-cols-2">
+    <form action={action} className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
       <div className="sm:col-span-2"><ActionMessage state={state} /></div>
       <div className="space-y-2"><Label htmlFor="roundType">รอบสอบ</Label><Select value={roundType} onValueChange={setRoundType}><SelectTrigger id="roundType"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="กลางภาค">กลางภาค</SelectItem><SelectItem value="ปลายภาค">ปลายภาค</SelectItem><SelectItem value="other">รอบสอบอื่น</SelectItem></SelectContent></Select></div>
       {roundType === "other" ? <div className="space-y-2"><Label htmlFor="name">ชื่อรอบสอบอื่น</Label><Input id="name" name="name" placeholder="เช่น สอบชดเชย" maxLength={100} required /></div> : <input type="hidden" name="name" value={roundType} />}
@@ -34,7 +34,7 @@ export function ExamRoundForm() {
 export function RoomForm() {
   const [state, action] = useActionState(createRoomAction, initialActionState);
   return (
-    <form action={action} className="grid gap-4 sm:grid-cols-2">
+    <form action={action} className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
       <div className="sm:col-span-2"><ActionMessage state={state} /></div>
       <div className="space-y-2"><Label htmlFor="code">รหัสห้อง</Label><Input id="code" name="code" required /></div>
       <div className="space-y-2"><Label htmlFor="roomName">ชื่อห้อง</Label><Input id="roomName" name="name" required /></div>
@@ -47,9 +47,9 @@ export function RoomForm() {
 
 export function SubjectForm({ rounds, instructors, initial }: { rounds: Option[]; instructors: Option[]; initial?: { id: string; roundId: string; instructorId: string; courseCode: string; courseName: string; groupNo: string } }) {
   const [state, action] = useActionState(createSubjectAction, initialActionState);
-  if (!rounds.length || !instructors.length) return <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{!rounds.length ? "กรุณาสร้างรอบสอบที่หน้า รอบสอบ ก่อนเพิ่มรายวิชา" : "ยังไม่มีอาจารย์ที่เปิดใช้งาน กรุณาให้ผู้ดูแลระบบสร้างบัญชีอาจารย์ก่อน"}</p>;
+  if (!rounds.length || !instructors.length) return <p className="border-l-2 border-primary py-3 pl-4 text-sm text-muted-foreground">{!rounds.length ? "กรุณาสร้างรอบสอบที่หน้า รอบสอบ ก่อนเพิ่มรายวิชา" : "ยังไม่มีอาจารย์ที่เปิดใช้งาน กรุณาให้ผู้ดูแลระบบสร้างบัญชีอาจารย์ก่อน"}</p>;
   return (
-    <form action={action} className="grid gap-4 sm:grid-cols-2">
+    <form action={action} className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
       <div className="sm:col-span-2"><ActionMessage state={state} /></div>
       <input type="hidden" name="editSubjectId" value={initial?.id ?? ""} />
       <SelectField name="roundId" label="รอบสอบ" options={rounds} defaultValue={initial?.roundId} />
@@ -64,9 +64,9 @@ export function SubjectForm({ rounds, instructors, initial }: { rounds: Option[]
 
 export function ExamRoomForm({ subjects, rooms, initial }: { subjects: Option[]; rooms: Option[]; initial?: { id: string; subjectId: string; roomId: string; examDate: string; startsAt: string; endsAt: string; note: string | null } }) {
   const [state, action] = useActionState(assignExamRoomAction, initialActionState);
-  if (!subjects.length || !rooms.length) return <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{!subjects.length ? "กรุณาเพิ่มรายวิชาในรอบสอบที่เปิดอยู่ก่อนจัดตารางสอบ" : "กรุณาเพิ่มห้องที่หน้า ห้องสอบ ก่อนจัดตารางสอบ"}</p>;
+  if (!subjects.length || !rooms.length) return <p className="border-l-2 border-primary py-3 pl-4 text-sm text-muted-foreground">{!subjects.length ? "กรุณาเพิ่มรายวิชาในรอบสอบที่เปิดอยู่ก่อนจัดตารางสอบ" : "กรุณาเพิ่มห้องที่หน้า ห้องสอบ ก่อนจัดตารางสอบ"}</p>;
   return (
-    <form action={action} className="grid gap-4 sm:grid-cols-2">
+    <form action={action} className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
       <div className="sm:col-span-2"><ActionMessage state={state} /></div>
       <input type="hidden" name="examRoomId" value={initial?.id ?? ""} />
       <SelectField name="subjectId" label="รายวิชา" options={subjects} defaultValue={initial?.subjectId} />

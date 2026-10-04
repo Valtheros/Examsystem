@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import Script from "next/script";
 import type { ReactNode } from "react";
-import { Toaster } from "sonner";
+import { AppThemeProvider, AppToaster } from "@/components/theme-controls";
 
 import { APP_NAME } from "@/lib/constants";
 import { ImpersonationBanner } from "@/components/impersonation";
@@ -26,11 +26,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="th" className={`${notoSansThai.variable} h-full antialiased`}>
+    <html lang="th" className={`${notoSansThai.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full bg-background text-foreground">
-        {children}
-        <ImpersonationBanner />
-        <Toaster richColors closeButton position="top-right" toastOptions={{ duration: 5000 }} />
+        <AppThemeProvider>
+          {children}
+          <ImpersonationBanner />
+          <AppToaster />
+        </AppThemeProvider>
         {process.env.NODE_ENV === "development" && <Script src="https://mcp.figma.com/mcp/html-to-design/capture.js" strategy="afterInteractive" />}
       </body>
     </html>

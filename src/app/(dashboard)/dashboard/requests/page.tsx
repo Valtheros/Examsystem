@@ -28,10 +28,10 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
       </div>
       <Card><CardHeader><CardTitle>รายการคำขอ · {records.length} รายการ</CardTitle>
         <form action="/dashboard/requests" className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="min-w-0 flex-1 space-y-2"><label htmlFor="requestSearch" className="text-sm">ค้นหาคำขอ</label><div className="relative"><Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" /><Input id="requestSearch" name="q" className="h-10 pl-9" placeholder="เลขคำขอ วิชา ผู้ส่ง หรือรอบสอบ" defaultValue={query} maxLength={200} /></div></div>
-          <div className="space-y-2"><label htmlFor="statusFilter" className="text-sm">สถานะ</label><Select name="status" defaultValue={status ?? "all"}><SelectTrigger id="statusFilter" className="h-10"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">ทุกสถานะ</SelectItem>{Object.values(REQUEST_STATUSES).map(value=><SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></div>
-          <Button type="submit" className="h-10">ค้นหา</Button>
-          {(query || status) && <Button asChild variant="outline" className="h-10"><Link href="/dashboard/requests">ล้างตัวกรอง</Link></Button>}
+          <div className="min-w-0 flex-1 space-y-2"><label htmlFor="requestSearch" className="text-sm">ค้นหาคำขอ</label><div className="relative"><Search className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted-foreground" /><Input id="requestSearch" name="q" className="pl-9" placeholder="เลขคำขอ วิชา ผู้ส่ง หรือรอบสอบ" defaultValue={query} maxLength={200} /></div></div>
+          <div className="space-y-2"><label htmlFor="statusFilter" className="text-sm">สถานะ</label><Select name="status" defaultValue={status ?? "all"}><SelectTrigger id="statusFilter" className="min-h-11"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">ทุกสถานะ</SelectItem>{Object.values(REQUEST_STATUSES).map(value=><SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></div>
+          <Button type="submit" className="min-h-11">ค้นหา</Button>
+          {(query || status) && <Button asChild variant="outline" className="min-h-11"><Link href="/dashboard/requests">ล้างตัวกรอง</Link></Button>}
         </form>
       </CardHeader><CardContent><RequestList records={records} /></CardContent></Card>
     </div>

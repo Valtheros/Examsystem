@@ -377,53 +377,6 @@ export const printJobs = appSchema.table(
   ],
 );
 
-export const deliveries = appSchema.table(
-  "deliveries",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    requestId: uuid("request_id")
-      .notNull()
-      .references(() => examRequests.id, { onDelete: "cascade" })
-      .unique(),
-    senderId: text("sender_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "restrict" }),
-    receiverId: text("receiver_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "restrict" }),
-    receiverNameSnapshot: text("receiver_name_snapshot").notNull(),
-    signatureStorageKey: text("signature_storage_key"),
-    deliveredAt: timestamp("delivered_at", { withTimezone: true }).notNull(),
-    note: text("note"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [index("deliveries_receiver_idx").on(table.receiverId)],
-);
-
-export const distributions = appSchema.table(
-  "distributions",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    deliveryId: uuid("delivery_id")
-      .notNull()
-      .references(() => deliveries.id, { onDelete: "cascade" }),
-    requestRoomId: uuid("request_room_id")
-      .notNull()
-      .references(() => requestRooms.id, { onDelete: "restrict" })
-      .unique(),
-    distributedBy: text("distributed_by")
-      .notNull()
-      .references(() => user.id, { onDelete: "restrict" }),
-    distributedAt: timestamp("distributed_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    note: text("note"),
-  },
-  (table) => [index("distributions_delivery_idx").on(table.deliveryId)],
-);
-
 export const notifications = appSchema.table(
   "notifications",
   {
@@ -532,7 +485,6 @@ export const examRequestRelations = relations(examRequests, ({ many, one }) => (
   rooms: many(requestRooms),
   files: many(examFiles),
   printJobs: many(printJobs),
-  delivery: one(deliveries),
   notifications: many(notifications),
   statusHistory: many(requestStatusHistory),
 }));
@@ -547,7 +499,6 @@ export const requestRoomRelations = relations(requestRooms, ({ many, one }) => (
     references: [examRooms.id],
   }),
   coverSheets: many(coverSheets),
-  distribution: one(distributions),
 }));
 
 export const examFileRelations = relations(examFiles, ({ one }) => ({
@@ -575,31 +526,6 @@ export const printJobRelations = relations(printJobs, ({ one }) => ({
     references: [examRequests.id],
   }),
   operator: one(user, { fields: [printJobs.operatorId], references: [user.id] }),
-}));
-
-export const deliveryRelations = relations(deliveries, ({ many, one }) => ({
-  request: one(examRequests, {
-    fields: [deliveries.requestId],
-    references: [examRequests.id],
-  }),
-  sender: one(user, { fields: [deliveries.senderId], references: [user.id] }),
-  receiver: one(user, { fields: [deliveries.receiverId], references: [user.id] }),
-  distributions: many(distributions),
-}));
-
-export const distributionRelations = relations(distributions, ({ one }) => ({
-  delivery: one(deliveries, {
-    fields: [distributions.deliveryId],
-    references: [deliveries.id],
-  }),
-  requestRoom: one(requestRooms, {
-    fields: [distributions.requestRoomId],
-    references: [requestRooms.id],
-  }),
-  officer: one(user, {
-    fields: [distributions.distributedBy],
-    references: [user.id],
-  }),
 }));
 
 export const notificationRelations = relations(notifications, ({ one }) => ({

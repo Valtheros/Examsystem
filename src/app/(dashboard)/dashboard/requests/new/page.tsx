@@ -15,7 +15,7 @@ export default async function NewRequestPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-7">
       <div><p className="text-sm font-medium text-primary">อาจารย์</p><h1 className="text-3xl font-semibold">ส่งข้อสอบ</h1><p className="mt-2 text-muted-foreground">เลือกวิชา กรอกแบบฟอร์มพร้อม PDF แล้วตรวจทานและส่งได้ในหน้านี้</p></div>
-      <Card><CardHeader><CardTitle>แบบฟอร์มส่งข้อสอบออนไลน์</CardTitle><CardDescription>อาจารย์กำหนดจำนวนชุดต่อห้อง หน่วยโสตเพิ่มสำรองในขั้นเตรียมพิมพ์</CardDescription></CardHeader><CardContent>{options.length ? <RequestEditor subjects={options} /> : <p className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">ยังไม่มีรายวิชาในรอบสอบที่เปิดอยู่ กรุณาติดต่อเจ้าหน้าที่</p>}</CardContent></Card>
+      <Card><CardHeader><CardTitle>แบบฟอร์มส่งข้อสอบออนไลน์</CardTitle><CardDescription>อาจารย์กำหนดจำนวนชุดต่อห้อง หน่วยโสตเพิ่มสำรองในขั้นเตรียมพิมพ์</CardDescription></CardHeader><CardContent>{options.length ? <RequestEditor subjects={options} /> : <p className="py-8 text-muted-foreground">ยังไม่มีรายวิชาในรอบสอบที่เปิดอยู่ กรุณาติดต่อเจ้าหน้าที่</p>}</CardContent></Card>
     </div>
   );
 }

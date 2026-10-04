@@ -6,8 +6,6 @@ import {
   account,
   auditLogs,
   coverSheets,
-  deliveries,
-  distributions,
   examFiles,
   examRequests,
   examRooms,
@@ -49,8 +47,6 @@ async function resetDatabase(currentUser: {
   try {
     await db.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(921001)`);
-      await tx.delete(distributions);
-      await tx.delete(deliveries);
       await tx.delete(coverSheets);
       await tx.delete(printJobs);
       await tx.delete(examFiles);

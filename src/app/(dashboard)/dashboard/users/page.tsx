@@ -37,7 +37,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
       <Card>
         <CardHeader>
           <CardTitle>บัญชีทั้งหมด</CardTitle>
-          <form className="mt-3 flex flex-wrap gap-3"><div className="relative min-w-0 flex-1"><Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" /><Input name="q" aria-label="ค้นหาผู้ใช้" defaultValue={query} className="pl-9" placeholder="ค้นหาชื่อ Username หรืออีเมล" /></div><Select name="role" defaultValue={role}><SelectTrigger aria-label="กรองบทบาท" className="w-44"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">ทุกบทบาท</SelectItem>{Object.values(ROLES).map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select><Button type="submit">ค้นหา</Button></form>
+          <form className="mt-3 flex flex-wrap gap-3"><div className="relative min-w-0 flex-1"><Search className="absolute left-3 top-3.5 size-4 text-muted-foreground" /><Input name="q" aria-label="ค้นหาผู้ใช้" defaultValue={query} className="pl-9" placeholder="ค้นหาชื่อ Username หรืออีเมล" /></div><Select name="role" defaultValue={role}><SelectTrigger aria-label="กรองบทบาท" className="w-full sm:w-44"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">ทุกบทบาท</SelectItem>{Object.values(ROLES).map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select><Button type="submit">ค้นหา</Button></form>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
@@ -48,7 +48,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                   <TableCell><p className="font-medium">{record.name}</p><p className="text-xs text-muted-foreground">{record.username} · {record.email}</p></TableCell>
                   <TableCell><Badge variant="secondary">{record.role}</Badge></TableCell>
                   <TableCell>{record.banned ? <Badge variant="destructive">ปิดใช้งาน</Badge> : <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">เปิดใช้งาน</Badge>}</TableCell>
-                  <TableCell><details><summary className="cursor-pointer rounded-md px-2 py-2 text-sm font-medium text-primary">จัดการบัญชี</summary><div className="mt-3 space-y-3">
+                  <TableCell><details><summary className="min-h-11 text-sm font-medium text-primary">จัดการบัญชี</summary><div className="mt-3 space-y-3">
                     <ImpersonateButton userId={record.id} username={record.username ?? record.name} disabledReason={impersonationBlockReason(record)} />
                     <form action={setUserActiveAction}>
                       <input type="hidden" name="userId" value={record.id} />

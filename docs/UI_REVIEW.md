@@ -102,3 +102,34 @@ Factory Reset ทดสอบ UI และ response branches ด้วย mock �
 ใช้ฐานข้อมูล local ใหม่ชื่อขึ้นต้น examsystem_test_ เท่านั้น ตั้ง TEST_DATABASE_URL และ DATABASE_URL ให้ตรงกัน เรียก scripts/prepare-workflow-test.ts เฉพาะฐานข้อมูลว่าง (สคริปต์ปฏิเสธ schema ที่มีอยู่ ไม่ reset) จากนั้น seed-review.ts ด้วย REVIEW_PASSWORD ที่ตั้งเอง แยก STORAGE_BUCKET สำหรับ test และรัน tests/workflow.integration.test.ts; Playwright ใช้ PLAYWRIGHT_BASE_URL ของเว็บที่เชื่อม test DB เท่านั้น
 
 ข้อจำกัด: ไม่ได้ทดสอบ Firefox/Safari จริง, โหลด 200 คน, อัปโหลดเต็ม 100 MB หรือเครื่องพิมพ์จริง ไม่อ้างผลว่าเงื่อนไขเหล่านี้ผ่าน การส่งเมลใช้ Mailpit ในเครื่อง ไม่ได้ส่ง Gmail จริง ไม่มีระบบสำรองอัตโนมัติและไม่ได้รีเซ็ตข้อมูลจริง
+
+## Visual redesign — 3 ตุลาคม 2569
+
+- ใช้ design-taste-frontend กับระบบงานจริง: ลดการ์ดซ้อนเป็น section เส้นแบ่ง งานของบทบาทเป็นลิงก์แถวเต็ม สถิติเป็นข้อมูลรอง ไม่ใช้ gradient/glass/เงาใหญ่ และคงงานเรียงบนลงล่าง
+- โหมดสว่างเริ่มต้นและโหมดมืดจำค่าบนอุปกรณ์ มีปุ่มสลับที่ header ใช้ Noto Sans Thai และ PSU navy เดิม
+- โลโก้บนเว็บเป็น PNG โปร่งใส ดู prompt/ต้นฉบับ/วิธีสร้างใน `LOGO_ASSET.md` ไม่เขียนทับภาพที่ PDF ใช้ หน้า login ไม่แสดงบรรทัดคณะวิทยาศาสตร์ตามคำสั่งล่าสุด
+- เพิ่ม loading/error/empty state, skip link และเป้าสัมผัสหลัก 44px; ฟอร์มอาจารย์ย้าย focus ไปต้นขั้นและรอ hydration ก่อนให้เลือกไฟล์ พร้อมแสดงชื่อ PDF ที่เลือก
+- ตรวจ React: theme ไม่ render markup ต่างกันระหว่าง SSR/client, hydration suppression จำกัดที่ html, สิทธิ์และข้อมูลอยู่ฝั่ง server เดิม ไม่เพิ่ม fetch ฝั่ง client แทนข้อมูล server
+- เปิด Drizzle Studio จริงและเลือก schema `app` เห็น 14 ตาราง; `better_auth` อีก 4 ตาราง ไม่มี custom database UI และไม่ใช้ Prisma/Adminer ในรุ่นนี้ Chrome อาจต้องอนุญาต Local network access ตาม SETUP
+
+ผลตรวจล่าสุด:
+
+- ESLint ผ่าน; unit 43 ผ่าน (integration 3 รายการข้ามในคำสั่งปกติ แล้วรันแยกผ่านทั้ง 3)
+- Native production build และ Docker production build ผ่าน อัปเดตเฉพาะ container web โดยไม่ลบ volumes
+- Playwright ทั้งชุด 19 ผ่าน / 1 ข้าม: workflow เต็มบน desktop ครบ 4 บทบาท สองห้อง PDF v1/v2 ส่งกลับแก้ไข จำนวนพิมพ์ revision ใบปะหน้า และจบเมื่อพิมพ์เสร็จ; mobile workflow เต็มข้ามตามเดิม แต่ navigation/filter/dialog ของทั้ง 4 บทบาทบนมือถือผ่าน
+- ตรวจ screenshot และไม่มี horizontal overflow ที่ 360/768/1024/1440 ในฟอร์มอาจารย์และหน้าคำขอ ตรวจ light/dark หน้าของหน่วยโสตและ login เพิ่ม พร้อมทดสอบจำ theme หลัง reload
+- ตรวจหน้า login Docker จริง: โลโก้โปร่งใส ไม่มีข้อความคณะวิทยาศาสตร์ใน body และ `/api/health` ตอบ `ok`
+- ข้อมูลจริงก่อน/หลัง: users 4, requests 1, files 1, cover_sheets 1, print_jobs 1 เท่าเดิม; ทดสอบ mutation ทั้งหมดใช้ฐานข้อมูลและ bucket แยก ไม่มี Factory Reset จริง
+- ชุดทดสอบแก้ให้รอ sign-out/ส่งคำขอเสร็จจริง ไม่ถือว่าปุ่มเปลี่ยนข้อความเป็นผลสำเร็จ และเผื่อเวลาส่งอีเมล Mailpit โดยไม่ปิด rate limit
+
+ข้อจำกัด: ไม่ได้ทดสอบ Firefox/Safari จริง, โหลด 200 คน, PDF เต็ม 100 MB หรือเครื่องพิมพ์จริงในรอบนี้ ผลข้างต้นไม่ใช่การรับรอง NFR เหล่านี้ `npm ci` รายงาน dependency advisories เดิม ต้องประเมินและอัปเดตเป็นงานแยก ไม่ใช้ audit fix แบบ breaking ระหว่าง redesign
+
+## Database cleanup — 3 ตุลาคม 2569
+
+- Migration `0005_retire_delivery_distribution` ลบเฉพาะ `deliveries` และ `distributions` ที่ workflow ปัจจุบันไม่ใช้ เหลือ 16 ตารางของระบบ (app 12 / better_auth 4) เก็บ migration journal ของ Drizzle ไว้
+- ทดสอบบนฐานข้อมูลว่างแยก `examsystem_test_cleanup_20261003`: สร้างประวัติรับมอบ/แจกจ่ายเก่า ตรวจว่า archive ครบ รวม object key ลายเซ็นและผู้เกี่ยวข้อง แล้วจึงลบตาราง ยอดพิมพ์และสถานะเดิมไม่เปลี่ยน
+- จำลอง view ที่อ้างตารางเดิม: DROP ถูกปฏิเสธ และทั้ง transaction รวม Audit Log ย้อนกลับ ผ่าน; migration ไม่ใช้ CASCADE
+- ESLint ผ่าน, unit 43 ผ่าน / integration 3 ข้ามในคำสั่งปกติ, integration PostgreSQL แยกผ่าน 3 รายการ และ Docker production build ผ่าน ไม่มีการรัน Playwright ใหม่ในงานลดตารางรอบนี้
+- ฐานข้อมูลจริง: สองตารางที่เลิกใช้มี 0 แถว ก่อน migration; หยุดเฉพาะ web ขณะย้าย ตรวจจำนวนและ fingerprint ของข้อมูลทั้ง 16 ตารางก่อน/หลังเท่ากันทุกตาราง (รวมบัญชี session Audit Log ไฟล์ คำขอ และงานพิมพ์) ไม่ใช้ Factory Reset และไม่แตะ MinIO/volumes
+- Migration journal มี 6 รายการ รัน migrator ซ้ำสำเร็จโดยไม่เปลี่ยนข้อมูล; db:generate ไม่พบ schema ที่ยังตกค้าง
+- เปิด web image ใหม่แล้ว container healthy, `/api/health` ตอบ ok และ `/login` ตอบ HTTP 200 รีสตาร์ต Drizzle Studio เพื่อโหลด schema ปัจจุบัน
