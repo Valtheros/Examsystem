@@ -6,9 +6,12 @@ import { ThemeToggle } from "@/components/theme-controls";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Brand } from "@/components/brand";
+import { LoginForm } from "@/components/login-form";
 
 const theme = vi.hoisted(() => ({ setTheme: vi.fn() }));
 vi.mock("next-themes", () => ({ useTheme: () => theme }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
+vi.mock("@/lib/auth-client", () => ({ authClient: { signIn: { username: vi.fn() } } }));
 afterEach(() => { cleanup(); document.documentElement.classList.remove("dark"); vi.clearAllMocks(); });
 
 describe("restrained frontend design", () => {
@@ -30,6 +33,20 @@ describe("restrained frontend design", () => {
     document.documentElement.classList.add("dark");
     fireEvent.click(button);
     expect(theme.setTheme).toHaveBeenLastCalledWith("light");
+  });
+  it("can reveal and hide a password without submitting or clearing the login form", () => {
+    render(createElement(LoginForm, { nextPath: "/dashboard" }));
+    const password = screen.getByLabelText("รหัสผ่าน") as HTMLInputElement;
+    fireEvent.change(password, { target: { value: "TestOnlyPassword123" } });
+    expect(password.type).toBe("password");
+    const reveal = screen.getByRole("button", { name: "แสดงรหัสผ่าน" });
+    expect(reveal.getAttribute("type")).toBe("button");
+    fireEvent.click(reveal);
+    expect(password.type).toBe("text");
+    expect(reveal.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "ซ่อนรหัสผ่าน" }));
+    expect(password.type).toBe("password");
+    expect(password.value).toBe("TestOnlyPassword123");
   });
   it("section defaults do not restore nested rounded cards or shadows", () => {
     const view = render(createElement(Card, null, createElement(CardTitle, null, "เตรียมพิมพ์"), createElement(CardContent, null, "จำนวนต่อห้อง")));

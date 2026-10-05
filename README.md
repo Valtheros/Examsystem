@@ -1,7 +1,7 @@
 <div align="center">
   <img src="public/psu-logo-transparent.png" alt="ตรามหาวิทยาลัยสงขลานครินทร์" height="100" />
   <h1>Examsystem · ระบบจัดพิมพ์ข้อสอบ</h1>
-  <p>Clone → ตั้งผู้ดูแล → เปิด Docker → ใช้งานเว็บ</p>
+  <p>Clone → คัดลอก env → เปิด Docker → ใช้งานเว็บ</p>
 </div>
 
 ## สิ่งที่ต้องมี
@@ -18,19 +18,23 @@ cp .env.app.example .env.app.local
 
 บน PowerShell ใช้ `Copy-Item .env.app.example .env.app.local` เพื่อคัดลอกไฟล์ได้เช่นกัน
 
-## 2. ตั้งบัญชีผู้ดูแล
+## 2. ค่าเริ่มต้นใน env (แก้ไขได้)
 
-เปิด `.env.app.local` แล้วแก้ค่าเหล่านี้:
+ไฟล์ `.env.app.example` เตรียมค่าที่ต้องใช้ไว้แล้ว เมื่อคัดลอกเป็น `.env.app.local` สามารถเปิด Docker ในขั้นตอนถัดไปได้เลย หรือแก้ค่าเหล่านี้ตามต้องการ:
 
 ```dotenv
-BETTER_AUTH_SECRET=ใส่อักษรสุ่มอย่างน้อย32ตัวอักษร
+BETTER_AUTH_SECRET=36fb43649686ac14dfbc1c80308796e439a8518fdf9ae6ce188c2a05cc42e1f9
 BOOTSTRAP_ADMIN_USERNAME=systemadmin
-BOOTSTRAP_ADMIN_EMAIL=อีเมลของคุณ
-BOOTSTRAP_ADMIN_NAME=ชื่อผู้ดูแล
-BOOTSTRAP_ADMIN_PASSWORD=รหัสผ่านชั่วคราวของคุณ
+BOOTSTRAP_ADMIN_EMAIL=admin@gmail.com
+BOOTSTRAP_ADMIN_NAME=Systemadmin
+BOOTSTRAP_ADMIN_PASSWORD=Admin123456789
 ```
 
-รหัสผ่านต้องมีอย่างน้อย **12 ตัวอักษร** ใช้ตัวพิมพ์ใหญ่ ตัวพิมพ์เล็ก และตัวเลข ส่วน `BETTER_AUTH_SECRET` ใช้ค่าสุ่มอย่างน้อย 32 ตัวอักษร เก็บไฟล์นี้ไว้เฉพาะเครื่องของคุณ
+บัญชีเริ่มต้นคือ **`systemadmin` / `Admin123456789`** โดยระบบบังคับเปลี่ยนรหัสผ่านเมื่อเข้าสู่ระบบครั้งแรก หากตั้งรหัสผ่านเอง ต้องมีอย่างน้อย **12 ตัวอักษร** ใช้ตัวพิมพ์ใหญ่ ตัวพิมพ์เล็ก และตัวเลข
+
+`BETTER_AUTH_SECRET` ด้านบนสุ่มไว้ให้เป็นค่าเริ่มต้นสำหรับทดลองในเครื่อง หากติดตั้งบนเซิร์ฟเวอร์ ให้สุ่มค่าใหม่อย่างน้อย 32 ตัวอักษรสำหรับเครื่องนั้น เก็บ `.env.app.local` ไว้เฉพาะเครื่อง ไม่ commit เข้า Git
+
+ฐานข้อมูล PostgreSQL ที่เก็บไฟล์ MinIO และกล่องเมลทดสอบ Mailpit ตั้งค่าไว้ใน Docker Compose แล้ว ไม่ต้องกรอกค่าเพิ่มสำหรับการเปิดระบบในเครื่อง อีเมล `admin@gmail.com` เป็นข้อมูลบัญชีผู้ดูแล การส่งอีเมลจริงต้องตั้งค่าบัญชีผู้ส่งเพิ่มเติม
 
 ## 3. เปิดระบบ
 
