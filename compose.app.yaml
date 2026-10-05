@@ -23,7 +23,7 @@ services:
     build:
       context: .
       target: runner
-    restart: unless-stopped
+    restart: "no"
     env_file:
       - path: .env.app.local
         required: false

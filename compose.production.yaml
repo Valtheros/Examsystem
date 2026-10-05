@@ -3,7 +3,7 @@ name: examsystem
 services:
   postgres:
     image: postgres:17-alpine
-    restart: unless-stopped
+    restart: "no"
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -20,7 +20,7 @@ services:
 
   minio:
     image: minio/minio:RELEASE.2025-07-23T15-54-02Z
-    restart: unless-stopped
+    restart: "no"
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -94,7 +94,7 @@ services:
     build:
       context: .
       target: runner
-    restart: unless-stopped
+    restart: "no"
     environment:
       NODE_ENV: production
       NEXT_PUBLIC_APP_URL: https://${APP_DOMAIN}
@@ -150,7 +150,7 @@ services:
 
   caddy:
     image: caddy:2.10.2-alpine
-    restart: unless-stopped
+    restart: "no"
     environment:
       APP_DOMAIN: ${APP_DOMAIN}
       FILES_DOMAIN: ${FILES_DOMAIN}

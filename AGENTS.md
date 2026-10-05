@@ -17,6 +17,8 @@
 
 Local Docker quick start: `.env.app.example` -> `.env.app.local` แล้ว `docker compose -f compose.yaml -f compose.app.yaml up -d --build` บริการ setup รัน migration และ `db:seed-admin -- --if-empty` ก่อนเปิด web ตามคำสั่งผู้ใช้ล่าสุด 5 ตุลาคม 2569 ห้าม reset/sync บัญชีผู้ดูแลอัตโนมัติเมื่อเปิด Docker หรือ Compose ใหม่ ถ้ามีผู้ดูแลอยู่แล้ว ให้คงรหัส ชื่อ อีเมล sessions และ must_change_password เดิมทั้งหมด ค่า BOOTSTRAP_ADMIN_* ใช้เฉพาะสร้างบัญชีครั้งแรก การใช้ `--sync-existing` ทำได้เฉพาะคำสั่งกู้บัญชีที่ผู้ใช้งานรันเองอย่างชัดเจน ไม่ใส่ใน startup บัญชี non-admin ที่ใช้ Username ตรงกันต้องไม่ถูกเลื่อนบทบาทอัตโนมัติ ไม่ reset ฐานข้อมูลหรือไฟล์
 
+คำสั่งล่าสุด 5 ตุลาคม 2569: ทุกบริการใน compose.yaml, compose.app.yaml และ compose.production.yaml ใช้ `restart: "no"` ไม่เปิดอัตโนมัติเมื่อเริ่ม Docker หรือหลัง container หยุด ผู้ใช้เลือกเปิดทั้งชุดด้วย Compose เอง ห้ามเพิ่ม restart policy แบบอัตโนมัติกลับมาโดยไม่รับคำสั่งใหม่
+
 ## Canonical Roles
 
 ใช้ชื่อเหล่านี้ใน DB, code, UI และเอกสารเท่านั้น:
