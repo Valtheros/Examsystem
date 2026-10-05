@@ -32,6 +32,11 @@ test("four roles: accounts → two rooms → form/PDF → rework → quantities/
     await page.getByRole("combobox", { name, exact: true }).click();
     await page.getByRole("option", { name: option, exact: typeof option === "string" }).click();
   };
+  const openForm = async (path: string, label: string, heading = label) => {
+    await page.goto(path);
+    await page.getByRole("link", { name: label, exact: true }).click();
+    await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+  };
   await login("review.admin");
   await page.goto("/dashboard/users");
   await page.getByLabel("Username", { exact: true }).fill(teacher);
@@ -43,14 +48,35 @@ test("four roles: accounts → two rooms → form/PDF → rework → quantities/
   await expect(page.getByRole("cell").filter({ hasText: teacher }).first()).toBeVisible();
   await logout();
   await login("review.officer");
-  await page.goto("/dashboard/rounds");
+  await openForm("/dashboard/rounds", "สร้างรอบสอบ");
   await choose("รอบสอบ", "รอบสอบอื่น");
   await page.getByLabel("ชื่อรอบสอบอื่น", { exact: true }).fill(round);
   await page.getByLabel("ปีการศึกษา").fill("2569"); await page.getByLabel("ภาคการศึกษา").fill("1");
   await page.getByRole("button", { name: "สร้างรอบสอบ", exact: true }).click();
   await expect(page.getByText("สร้างรอบสอบแล้ว", { exact: true })).toBeVisible();
+  const roundRow = page.getByRole("row").filter({ has: page.getByRole("cell", { name: round, exact: true }) });
+  await roundRow.getByRole("link", { name: "แก้ไขรอบสอบ", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "แก้ไขรอบสอบ", exact: true })).toBeVisible();
+  await expect(page.getByLabel("ชื่อรอบสอบอื่น", { exact: true })).toHaveValue(round);
+  await page.getByLabel("ภาคการศึกษา").fill("2");
+  await page.getByLabel("เปิดรับต้นฉบับ", { exact: true }).fill("2026-09-01");
+  await page.getByLabel("ปิดรับต้นฉบับ", { exact: true }).fill("2026-12-19");
+  await page.getByRole("button", { name: "บันทึกแก้ไขรอบสอบ", exact: true }).click();
+  await expect(roundRow).toContainText("2569 / 2");
+  await openForm("/dashboard/rounds", "สร้างรอบสอบ");
+  await choose("รอบสอบ", "รอบสอบอื่น");
+  await page.getByLabel("ชื่อรอบสอบอื่น").fill(round + " DELETE");
+  await page.getByLabel("ปีการศึกษา").fill("2569"); await page.getByLabel("ภาคการศึกษา").fill("1");
+  await page.getByRole("button", { name: "สร้างรอบสอบ", exact: true }).click();
+  const unusedRound = page.getByRole("row").filter({ hasText: round + " DELETE" });
+  await unusedRound.getByRole("button", { name: "ลบ", exact: true }).click();
+  await page.getByRole("button", { name: "กลับไปตรวจทาน", exact: true }).click();
+  await expect(unusedRound).toBeVisible();
+  await unusedRound.getByRole("button", { name: "ลบ", exact: true }).click();
+  await page.getByRole("button", { name: "ยืนยันลบ", exact: true }).click();
+  await expect(unusedRound).toHaveCount(0);
   for (const room of ["A", "B"]) {
-    await page.goto("/dashboard/rooms");
+    await openForm("/dashboard/rooms", "เพิ่มห้อง");
     await page.getByLabel("รหัสห้อง").fill(course + room);
     await page.getByLabel("ชื่อห้อง", { exact: true }).fill(`ห้องทดสอบ ${room}`);
     await page.getByLabel("ความจุ", { exact: true }).fill("50");
@@ -64,7 +90,7 @@ test("four roles: accounts → two rooms → form/PDF → rework → quantities/
   await page.getByLabel("อาคาร", { exact: true }).fill("อาคารทดสอบ");
   await page.getByRole("button", { name: "บันทึกแก้ไขห้องสอบ", exact: true }).click();
   await expect(roomRow).toContainText("อาคารทดสอบ");
-  await page.goto("/dashboard/rooms");
+  await openForm("/dashboard/rooms", "เพิ่มห้อง");
   await page.getByLabel("รหัสห้อง").fill(course + "DELETE");
   await page.getByLabel("ชื่อห้อง", { exact: true }).fill("ห้องทดสอบลบ");
   await page.getByLabel("ความจุ", { exact: true }).fill("10");
@@ -73,7 +99,7 @@ test("four roles: accounts → two rooms → form/PDF → rework → quantities/
   await unusedRoom.getByRole("button", { name: "ลบ", exact: true }).click();
   await page.getByRole("button", { name: "ยืนยันลบ", exact: true }).click();
   await expect(unusedRoom).toHaveCount(0);
-  await page.goto("/dashboard/subjects");
+  await openForm("/dashboard/subjects", "เพิ่มรายวิชา");
   await choose("รอบสอบ", new RegExp(round)); await choose("อาจารย์ผู้รับผิดชอบ", new RegExp(teacher));
   await page.getByLabel("รหัสวิชา", { exact: true }).fill(course);
   await page.getByLabel("ชื่อวิชา", { exact: true }).fill("การเขียนโปรแกรมและการจัดพิมพ์ข้อสอบสำหรับรายวิชาที่มีชื่อยาว");
@@ -90,7 +116,7 @@ test("four roles: accounts → two rooms → form/PDF → rework → quantities/
   await page.getByRole("button", { name: "บันทึกแก้ไขรายวิชา", exact: true }).click();
   await expect(page.getByRole("row").filter({ hasText: course }).getByRole("cell", { name: "2", exact: true })).toBeVisible();
   for (const room of ["A", "B"]) {
-    await page.goto("/dashboard/subjects");
+    await openForm("/dashboard/subjects", "จัดตารางสอบ");
     await choose("รายวิชา", new RegExp(course)); await choose("ห้องสอบ", new RegExp(course + room));
     await page.getByLabel("วันที่สอบ").fill("2026-09-20");
     await page.getByLabel("เริ่ม", { exact: true }).fill("09:00"); await page.getByLabel("สิ้นสุด", { exact: true }).fill("11:00");
@@ -107,7 +133,7 @@ test("four roles: accounts → two rooms → form/PDF → rework → quantities/
   await scheduleRow.getByRole("button", { name: "ลบ", exact: true }).click();
   await page.getByRole("button", { name: "ยืนยันลบ", exact: true }).click();
   await expect(scheduleRow).toHaveCount(0);
-  await page.goto("/dashboard/subjects");
+  await openForm("/dashboard/subjects", "จัดตารางสอบ");
   await choose("รายวิชา", new RegExp(course)); await choose("ห้องสอบ", new RegExp(course + "B"));
   await page.getByLabel("วันที่สอบ").fill("2026-09-20");
   await page.getByLabel("เริ่ม", { exact: true }).fill("09:00"); await page.getByLabel("สิ้นสุด", { exact: true }).fill("11:00");
@@ -200,5 +226,26 @@ test("four roles: accounts → two rooms → form/PDF → rework → quantities/
   await expect(page.getByTestId("current-task").getByRole("link")).toHaveCount(0);
   await expect(page.getByRole("link", { name: "รับมอบ/แจกจ่าย", exact: true })).toHaveCount(0);
   expect((await page.request.post("/api/distributions/scan/00000000-0000-4000-8000-000000000000", { data: {} })).status()).toBe(404);
+  await page.goto("/dashboard/rounds");
+  await expect(roundRow.getByRole("link", { name: "แก้ไขรอบสอบ", exact: true })).toHaveCount(0);
+  await roundRow.getByRole("button", { name: /เหตุผลที่ล็อก/ }).click();
+  await expect(page.getByRole("alertdialog")).toContainText("ประวัติคำขอ");
+  await expect(page.getByRole("button", { name: "ยืนยันลบ", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "เข้าใจแล้ว", exact: true }).click();
+  for (const path of ["rounds", "rooms", "subjects"]) {
+    await page.goto(`/dashboard/${path}`);
+    for (const width of [360, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+      await page.screenshot({ path: info.outputPath(`setup-${path}-${width}.png`), fullPage: true });
+    }
+  }
+  await page.goto("/dashboard/rooms");
+  await roomRow.getByRole("button", { name: /เหตุผลที่ลบไม่ได้/ }).click();
+  await expect(page.getByRole("alertdialog")).toContainText("ต้องลบตาราง");
+  await page.getByRole("button", { name: "เข้าใจแล้ว", exact: true }).click();
+  await roomRow.getByRole("link", { name: "แก้ไขห้อง", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "แก้ไขห้องสอบ", exact: true })).toBeVisible();
   expect(browserErrors).toEqual([]);
 });

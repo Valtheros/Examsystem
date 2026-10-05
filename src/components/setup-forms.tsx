@@ -14,20 +14,20 @@ import { PSU_FACULTY_NAMES } from "@/lib/psu-faculties";
 
 type Option = { id: string; label: string };
 
-export function ExamRoundForm() {
+export function ExamRoundForm({ initial }: { initial?: { id: string; name: string; academicYear: string; semester: string; submissionStartsOn: string | null; submissionEndsOn: string | null } }) {
   const [state, action] = useActionState(createExamRoundAction, initialActionState);
-  const [roundType, setRoundType] = useState("กลางภาค");
+  const [roundType, setRoundType] = useState(initial && !["กลางภาค", "ปลายภาค"].includes(initial.name) ? "other" : initial?.name ?? "กลางภาค");
   return (
     <form action={action} className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
-      <div className="sm:col-span-2"><ActionMessage state={state} /></div>
-      <div className="space-y-2"><Label htmlFor="roundType">รอบสอบ</Label><Select value={roundType} onValueChange={setRoundType}><SelectTrigger id="roundType"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="กลางภาค">กลางภาค</SelectItem><SelectItem value="ปลายภาค">ปลายภาค</SelectItem><SelectItem value="other">รอบสอบอื่น</SelectItem></SelectContent></Select></div>
-      {roundType === "other" ? <div className="space-y-2"><Label htmlFor="name">ชื่อรอบสอบอื่น</Label><Input id="name" name="name" placeholder="เช่น สอบชดเชย" maxLength={100} required /></div> : <input type="hidden" name="name" value={roundType} />}
-      <div className="space-y-2"><Label htmlFor="academicYear">ปีการศึกษา</Label><Input id="academicYear" name="academicYear" placeholder="2569" required /></div>
-      <div className="space-y-2"><Label htmlFor="semester">ภาคการศึกษา</Label><Input id="semester" name="semester" placeholder="1" required /></div>
-      <div />
-      <div className="space-y-2"><Label htmlFor="submissionStartsOn">เปิดรับต้นฉบับ</Label><Input id="submissionStartsOn" name="submissionStartsOn" type="date" /></div>
-      <div className="space-y-2"><Label htmlFor="submissionEndsOn">ปิดรับต้นฉบับ</Label><Input id="submissionEndsOn" name="submissionEndsOn" type="date" /></div>
-      <div className="sm:col-span-2"><SubmitButton>สร้างรอบสอบ</SubmitButton></div>
+      <div className="empty:hidden sm:col-span-2"><ActionMessage state={state} /></div>
+      <input type="hidden" name="editRoundId" value={initial?.id ?? ""} />
+      <div className={roundType === "other" ? "space-y-2" : "space-y-2 sm:col-span-2 sm:max-w-sm"}><Label htmlFor="roundType">รอบสอบ</Label><Select value={roundType} onValueChange={setRoundType}><SelectTrigger id="roundType"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="กลางภาค">กลางภาค</SelectItem><SelectItem value="ปลายภาค">ปลายภาค</SelectItem><SelectItem value="other">รอบสอบอื่น</SelectItem></SelectContent></Select></div>
+      {roundType === "other" ? <div className="space-y-2"><Label htmlFor="name">ชื่อรอบสอบอื่น</Label><Input id="name" name="name" defaultValue={initial?.name} placeholder="เช่น สอบชดเชย" minLength={2} maxLength={100} required /></div> : <input type="hidden" name="name" value={roundType} />}
+      <div className="space-y-2"><Label htmlFor="academicYear">ปีการศึกษา</Label><Input id="academicYear" name="academicYear" defaultValue={initial?.academicYear} placeholder="2569" minLength={4} maxLength={10} required /></div>
+      <div className="space-y-2"><Label htmlFor="semester">ภาคการศึกษา</Label><Input id="semester" name="semester" defaultValue={initial?.semester} placeholder="1" maxLength={20} required /></div>
+      <div className="space-y-2"><Label htmlFor="submissionStartsOn">เปิดรับต้นฉบับ</Label><Input id="submissionStartsOn" name="submissionStartsOn" type="date" defaultValue={initial?.submissionStartsOn ?? ""} /></div>
+      <div className="space-y-2"><Label htmlFor="submissionEndsOn">ปิดรับต้นฉบับ</Label><Input id="submissionEndsOn" name="submissionEndsOn" type="date" defaultValue={initial?.submissionEndsOn ?? ""} /></div>
+      <div className="border-t pt-5 sm:col-span-2"><SubmitButton className="w-full sm:w-auto">{initial ? "บันทึกแก้ไขรอบสอบ" : "สร้างรอบสอบ"}</SubmitButton></div>
     </form>
   );
 }
@@ -36,13 +36,13 @@ export function RoomForm({ initial }: { initial?: { id: string; code: string; na
   const [state, action] = useActionState(createRoomAction, initialActionState);
   return (
     <form action={action} className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
-      <div className="sm:col-span-2"><ActionMessage state={state} /></div>
+      <div className="empty:hidden sm:col-span-2"><ActionMessage state={state} /></div>
       <input type="hidden" name="editRoomId" value={initial?.id ?? ""} />
       <div className="space-y-2"><Label htmlFor="code">รหัสห้อง</Label><Input id="code" name="code" defaultValue={initial?.code} maxLength={30} required /></div>
       <div className="space-y-2"><Label htmlFor="roomName">ชื่อห้อง</Label><Input id="roomName" name="name" defaultValue={initial?.name} maxLength={100} required /></div>
       <div className="space-y-2"><Label htmlFor="building">อาคาร</Label><Input id="building" name="building" defaultValue={initial?.building ?? ""} maxLength={100} /></div>
       <div className="space-y-2"><Label htmlFor="capacity">ความจุ</Label><Input id="capacity" name="capacity" type="number" defaultValue={initial?.capacity} min={0} max={10000} step={1} required /></div>
-      <div className="sm:col-span-2"><SubmitButton>{initial ? "บันทึกแก้ไขห้องสอบ" : "เพิ่มห้องสอบ"}</SubmitButton></div>
+      <div className="border-t pt-5 sm:col-span-2"><SubmitButton className="w-full sm:w-auto">{initial ? "บันทึกแก้ไขห้องสอบ" : "เพิ่มห้องสอบ"}</SubmitButton></div>
     </form>
   );
 }
@@ -52,7 +52,7 @@ export function SubjectForm({ rounds, instructors, initial }: { rounds: Option[]
   if (!rounds.length || !instructors.length) return <p className="border-l-2 border-primary py-3 pl-4 text-sm text-muted-foreground">{!rounds.length ? "กรุณาสร้างรอบสอบที่หน้า รอบสอบ ก่อนเพิ่มรายวิชา" : "ยังไม่มีอาจารย์ที่เปิดใช้งาน กรุณาให้ผู้ดูแลระบบสร้างบัญชีอาจารย์ก่อน"}</p>;
   return (
     <form action={action} className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
-      <div className="sm:col-span-2"><ActionMessage state={state} /></div>
+      <div className="empty:hidden sm:col-span-2"><ActionMessage state={state} /></div>
       <input type="hidden" name="editSubjectId" value={initial?.id ?? ""} />
       <SelectField name="roundId" label="รอบสอบ" options={rounds} defaultValue={initial?.roundId} />
       <SelectField name="instructorId" label="อาจารย์ผู้รับผิดชอบ" options={instructors} defaultValue={initial?.instructorId} />
@@ -60,7 +60,7 @@ export function SubjectForm({ rounds, instructors, initial }: { rounds: Option[]
       <div className="space-y-2"><Label htmlFor="courseName">ชื่อวิชา</Label><Input id="courseName" name="courseName" defaultValue={initial?.courseName} required /></div>
       <div className="min-w-0 space-y-2"><Label htmlFor="facultyName">คณะ</Label><Select name="facultyName" required defaultValue={PSU_FACULTY_NAMES.includes(initial?.facultyName as typeof PSU_FACULTY_NAMES[number]) ? initial!.facultyName! : undefined}><SelectTrigger id="facultyName"><SelectValue placeholder="เลือกคณะ" /></SelectTrigger><SelectContent>{PSU_FACULTY_NAMES.map(name => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent></Select></div>
       <div className="space-y-2"><Label htmlFor="groupNo">กลุ่มเรียน</Label><Input id="groupNo" name="groupNo" defaultValue={initial?.groupNo} required /></div>
-      <div className="sm:col-span-2"><SubmitButton>{initial ? "บันทึกแก้ไขรายวิชา" : "เพิ่มรายวิชา"}</SubmitButton></div>
+      <div className="border-t pt-5 sm:col-span-2"><SubmitButton className="w-full sm:w-auto">{initial ? "บันทึกแก้ไขรายวิชา" : "เพิ่มรายวิชา"}</SubmitButton></div>
     </form>
   );
 }
@@ -70,7 +70,7 @@ export function ExamRoomForm({ subjects, rooms, initial }: { subjects: Option[];
   if (!subjects.length || !rooms.length) return <p className="border-l-2 border-primary py-3 pl-4 text-sm text-muted-foreground">{!subjects.length ? "กรุณาเพิ่มรายวิชาในรอบสอบที่เปิดอยู่ก่อนจัดตารางสอบ" : "กรุณาเพิ่มห้องที่หน้า ห้องสอบ ก่อนจัดตารางสอบ"}</p>;
   return (
     <form action={action} className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
-      <div className="sm:col-span-2"><ActionMessage state={state} /></div>
+      <div className="empty:hidden sm:col-span-2"><ActionMessage state={state} /></div>
       <input type="hidden" name="examRoomId" value={initial?.id ?? ""} />
       <SelectField name="subjectId" label="รายวิชา" options={initial ? subjects.filter(subject => subject.id === initial.subjectId) : subjects} defaultValue={initial?.subjectId} />
       <SelectField name="roomId" label="ห้องสอบ" options={rooms} defaultValue={initial?.roomId} />
@@ -81,7 +81,7 @@ export function ExamRoomForm({ subjects, rooms, initial }: { subjects: Option[];
       </div>
       <p className="text-sm text-muted-foreground sm:col-span-2">เจ้าหน้าที่จัดห้องและเวลา ส่วนจำนวนชุดข้อสอบให้อาจารย์กรอกเมื่อส่งข้อสอบ</p>
       <div className="space-y-2 sm:col-span-2"><Label htmlFor="note">หมายเหตุบนใบปะหน้า</Label><Textarea id="note" name="note" defaultValue={initial?.note ?? ""} /></div>
-      <div className="sm:col-span-2"><SubmitButton>บันทึกตารางสอบ</SubmitButton></div>
+      <div className="border-t pt-5 sm:col-span-2"><SubmitButton className="w-full sm:w-auto">บันทึกตารางสอบ</SubmitButton></div>
     </form>
   );
 }

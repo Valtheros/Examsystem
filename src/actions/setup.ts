@@ -1,14 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, gt, lt, isNull, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, gt, lt, isNull, inArray, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import type { ActionState } from "@/actions/types";
 import { actionError } from "@/actions/types";
 import { db } from "@/db";
 import { auditLogs, examRequests, examRooms, examRounds, requestRooms, rooms, subjects, user } from "@/db/schema";
-import { writeAuditLog, sessionActor } from "@/lib/audit";
 import { REQUEST_STATUSES, ROLES } from "@/lib/constants";
 import { ConflictError } from "@/lib/errors";
 import { requireRole } from "@/lib/session";
@@ -19,34 +18,48 @@ import {
   subjectSchema,
 } from "@/lib/validation";
 
+async function lockUnusedRound(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], id: string) {
+  // Round -> sorted subjects -> rooms. Subject creation takes the round lock too.
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`round:${id}`}))`);
+  const [round] = await tx.select().from(examRounds).where(eq(examRounds.id, id)).for("update");
+  if (!round) throw new ConflictError("ไม่พบรอบสอบ");
+  const linked = await tx.select().from(subjects).where(eq(subjects.roundId, id)).orderBy(asc(subjects.id));
+  for (const subject of linked) {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`subject:${subject.id}`}))`);
+  }
+  const [used] = await tx.select({ id: examRequests.id }).from(examRequests)
+    .innerJoin(subjects, eq(examRequests.subjectId, subjects.id)).where(eq(subjects.roundId, id)).limit(1);
+  if (used) throw new ConflictError("รอบสอบนี้มีประวัติคำขอแล้ว จึงแก้ไขหรือลบไม่ได้ เพื่อรักษาคำขอและไฟล์เดิม");
+  return { ...round, subjects: linked };
+}
+
 export async function createExamRoundAction(
   _previous: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   try {
     const session = await requireRole([ROLES.OFFICER]);
-    const parsed = examRoundSchema.safeParse(Object.fromEntries(formData));
-    if (!parsed.success) {
-      return { ok: false, message: parsed.error.issues[0]?.message ?? "ข้อมูลไม่ถูกต้อง" };
-    }
-    const [created] = await db
-      .insert(examRounds)
-      .values({
-        ...parsed.data,
-        submissionStartsOn: parsed.data.submissionStartsOn || null,
-        submissionEndsOn: parsed.data.submissionEndsOn || null,
-        createdBy: session.user.id,
-      })
-      .returning({ id: examRounds.id });
-    await writeAuditLog({
-      actor: sessionActor(session),
-      action: "EXAM_ROUND_CREATED",
-      targetType: "exam_round",
-      targetId: created?.id,
-      metadata: parsed.data,
+    const data = examRoundSchema.parse(Object.fromEntries(formData));
+    const editId = formData.get("editRoundId") ? z.uuid().parse(formData.get("editRoundId")) : "";
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock_shared(921001)`);
+      const previous = editId ? await lockUnusedRound(tx, editId) : undefined;
+      const [duplicate] = await tx.select({ id: examRounds.id }).from(examRounds).where(and(
+        eq(examRounds.name, data.name), eq(examRounds.academicYear, data.academicYear),
+        eq(examRounds.semester, data.semester), editId ? ne(examRounds.id, editId) : undefined,
+      )).limit(1);
+      if (duplicate) throw new ConflictError("มีรอบสอบชื่อนี้ในปีและภาคการศึกษานี้แล้ว");
+      const values = { ...data, submissionStartsOn: data.submissionStartsOn || null, submissionEndsOn: data.submissionEndsOn || null };
+      const [saved] = editId
+        ? await tx.update(examRounds).set({ ...values, updatedAt: new Date() }).where(eq(examRounds.id, editId)).returning({ id: examRounds.id })
+        : await tx.insert(examRounds).values({ ...values, createdBy: session.user.id }).returning({ id: examRounds.id });
+      await tx.insert(auditLogs).values({ actorId: session.user.id, actorUsernameSnapshot: session.user.username,
+        actorRoleSnapshot: session.user.role, action: editId ? "EXAM_ROUND_UPDATED" : "EXAM_ROUND_CREATED",
+        targetType: "exam_round", targetId: saved.id, metadata: { previous, ...data } });
     });
     revalidatePath("/dashboard/rounds");
-    return { ok: true, message: "สร้างรอบสอบแล้ว" };
+    revalidatePath("/dashboard/subjects");
+    return { ok: true, message: editId ? "บันทึกการแก้ไขรอบสอบแล้ว" : "สร้างรอบสอบแล้ว" };
   } catch (error) {
     return actionError(error);
   }
@@ -98,25 +111,20 @@ export async function createSubjectAction(
   try {
     const session = await requireRole([ROLES.OFFICER]);
     const data = subjectSchema.parse(Object.fromEntries(formData));
-    const [[round], [instructor]] = await Promise.all([
-      db
-        .select({ id: examRounds.id, isActive: examRounds.isActive })
-        .from(examRounds)
-        .where(eq(examRounds.id, data.roundId))
-        .limit(1),
-      db
+    const [instructor] = await db
         .select({ id: user.id, role: user.role, banned: user.banned })
         .from(user)
         .where(eq(user.id, data.instructorId))
-        .limit(1),
-    ]);
-    if (!round?.isActive) throw new ConflictError("กรุณาเลือกรอบสอบที่เปิดใช้งาน");
+        .limit(1);
     if (!instructor || instructor.role !== ROLES.INSTRUCTOR || instructor.banned) {
       throw new ConflictError("ผู้รับผิดชอบต้องเป็นอาจารย์ที่เปิดใช้งานอยู่");
     }
     const subjectId = formData.get("editSubjectId") ? z.uuid().parse(formData.get("editSubjectId")) : "";
-    const created = await db.transaction(async (tx) => {
+    await db.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock_shared(921001)`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`round:${data.roundId}`}))`);
+      const [round] = await tx.select().from(examRounds).where(eq(examRounds.id, data.roundId));
+      if (!round?.isActive) throw new ConflictError("กรุณาเลือกรอบสอบที่เปิดใช้งาน");
       if (subjectId) {
         await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`subject:${subjectId}`}))`);
         const [active] = await tx.select({ id: examRequests.id }).from(examRequests).where(and(eq(examRequests.subjectId, subjectId), isNull(examRequests.cancelledAt)));
@@ -124,18 +132,9 @@ export async function createSubjectAction(
       }
       const [row] = subjectId ? await tx.update(subjects).set({ ...data, updatedAt: new Date() }).where(eq(subjects.id, subjectId)).returning({ id: subjects.id }) : await tx.insert(subjects).values(data).returning({ id: subjects.id });
       if (!row) throw new ConflictError("ไม่พบรายวิชา");
-      return row;
-    });
-    await writeAuditLog({
-      actor: sessionActor(session),
-      action: subjectId ? "SUBJECT_UPDATED" : "SUBJECT_CREATED",
-      targetType: "subject",
-      targetId: created?.id,
-      metadata: {
-        courseCode: data.courseCode,
-        facultyName: data.facultyName,
-        groupNo: data.groupNo,
-      },
+      await tx.insert(auditLogs).values({ actorId: session.user.id, actorUsernameSnapshot: session.user.username,
+        actorRoleSnapshot: session.user.role, action: subjectId ? "SUBJECT_UPDATED" : "SUBJECT_CREATED",
+        targetType: "subject", targetId: row.id, metadata: data });
     });
     revalidatePath("/dashboard/subjects");
     return { ok: true, message: subjectId ? "บันทึกการแก้ไขรายวิชาแล้ว" : "เพิ่มรายวิชาแล้ว" };
@@ -186,11 +185,14 @@ export async function assignExamRoomAction(_previous: ActionState, formData: For
 export async function deleteSetupAction(_previous: ActionState, formData: FormData): Promise<ActionState> {
   try {
     const session = await requireRole([ROLES.OFFICER]);
-    const { kind, id } = z.object({ kind: z.enum(["room", "subject", "schedule"]), id: z.uuid() }).parse(Object.fromEntries(formData));
+    const { kind, id } = z.object({ kind: z.enum(["round", "room", "subject", "schedule"]), id: z.uuid() }).parse(Object.fromEntries(formData));
     await db.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock_shared(921001)`);
       let previous;
-      if (kind === "room") {
+      if (kind === "round") {
+        previous = await lockUnusedRound(tx, id);
+        await tx.delete(examRounds).where(eq(examRounds.id, id)); // Only unused subjects/timetables cascade; requests use RESTRICT.
+      } else if (kind === "room") {
         await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`room:${id}`}))`);
         [previous] = await tx.select().from(rooms).where(eq(rooms.id, id)).for("update");
         if (!previous) throw new ConflictError("ไม่พบห้องสอบ");
@@ -217,9 +219,10 @@ export async function deleteSetupAction(_previous: ActionState, formData: FormDa
         }
       }
       await tx.insert(auditLogs).values({ actorId: session.user.id, actorUsernameSnapshot: session.user.username,
-        actorRoleSnapshot: session.user.role, action: `${kind === "schedule" ? "EXAM_ROOM" : kind.toUpperCase()}_DELETED`,
-        targetType: kind === "schedule" ? "exam_room" : kind, targetId: id, metadata: { previous } });
+        actorRoleSnapshot: session.user.role, action: `${kind === "schedule" ? "EXAM_ROOM" : kind === "round" ? "EXAM_ROUND" : kind.toUpperCase()}_DELETED`,
+        targetType: kind === "schedule" ? "exam_room" : kind === "round" ? "exam_round" : kind, targetId: id, metadata: { previous } });
     });
+    revalidatePath("/dashboard/rounds");
     revalidatePath("/dashboard/rooms");
     revalidatePath("/dashboard/subjects");
     return { ok: true, message: "ลบรายการแล้ว" };
