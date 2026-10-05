@@ -97,7 +97,7 @@ UQ* = unique ร่วม `(name, academic_year, semester)`
 | `round_id` | UUID | FK → `exam_rounds.id` | No | รอบสอบ |
 | `course_code` | TEXT | UQ* | No | รหัสวิชา |
 | `course_name` | TEXT |  | No | ชื่อวิชา |
-| `faculty_name` | TEXT |  | Yes | คณะของรายวิชา ใช้เติมหัวใบปะหน้าซอง เจ้าหน้าที่ต้องกรอกเมื่อสร้าง/แก้ไขรายวิชา; nullable เฉพาะรองรับข้อมูลเดิมที่ยังไม่ระบุ |
+| `faculty_name` | TEXT |  | Yes | คณะของรายวิชา ใช้เติมหัวใบปะหน้าซอง เจ้าหน้าที่ต้องเลือกจาก 16 คณะของ PSU วิทยาเขตหาดใหญ่เมื่อสร้าง/แก้ไขรายวิชา; nullable เฉพาะรองรับข้อมูลเดิมที่ยังไม่ระบุ |
 | `group_no` | TEXT | UQ* | No | กลุ่มเรียน |
 | `instructor_id` | TEXT | FK → `users.id` | No | อาจารย์ผู้รับผิดชอบ |
 | `created_at` | TIMESTAMPTZ |  | No | วันที่สร้าง |

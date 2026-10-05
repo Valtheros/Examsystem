@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { PSU_FACULTY_NAMES } from "@/lib/psu-faculties";
 
 type Option = { id: string; label: string };
 
@@ -31,16 +32,17 @@ export function ExamRoundForm() {
   );
 }
 
-export function RoomForm() {
+export function RoomForm({ initial }: { initial?: { id: string; code: string; name: string; building: string | null; capacity: number } }) {
   const [state, action] = useActionState(createRoomAction, initialActionState);
   return (
     <form action={action} className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
       <div className="sm:col-span-2"><ActionMessage state={state} /></div>
-      <div className="space-y-2"><Label htmlFor="code">รหัสห้อง</Label><Input id="code" name="code" required /></div>
-      <div className="space-y-2"><Label htmlFor="roomName">ชื่อห้อง</Label><Input id="roomName" name="name" required /></div>
-      <div className="space-y-2"><Label htmlFor="building">อาคาร</Label><Input id="building" name="building" /></div>
-      <div className="space-y-2"><Label htmlFor="capacity">ความจุ</Label><Input id="capacity" name="capacity" type="number" min={0} required /></div>
-      <div className="sm:col-span-2"><SubmitButton>เพิ่มห้องสอบ</SubmitButton></div>
+      <input type="hidden" name="editRoomId" value={initial?.id ?? ""} />
+      <div className="space-y-2"><Label htmlFor="code">รหัสห้อง</Label><Input id="code" name="code" defaultValue={initial?.code} maxLength={30} required /></div>
+      <div className="space-y-2"><Label htmlFor="roomName">ชื่อห้อง</Label><Input id="roomName" name="name" defaultValue={initial?.name} maxLength={100} required /></div>
+      <div className="space-y-2"><Label htmlFor="building">อาคาร</Label><Input id="building" name="building" defaultValue={initial?.building ?? ""} maxLength={100} /></div>
+      <div className="space-y-2"><Label htmlFor="capacity">ความจุ</Label><Input id="capacity" name="capacity" type="number" defaultValue={initial?.capacity} min={0} max={10000} step={1} required /></div>
+      <div className="sm:col-span-2"><SubmitButton>{initial ? "บันทึกแก้ไขห้องสอบ" : "เพิ่มห้องสอบ"}</SubmitButton></div>
     </form>
   );
 }
@@ -56,7 +58,7 @@ export function SubjectForm({ rounds, instructors, initial }: { rounds: Option[]
       <SelectField name="instructorId" label="อาจารย์ผู้รับผิดชอบ" options={instructors} defaultValue={initial?.instructorId} />
       <div className="space-y-2"><Label htmlFor="courseCode">รหัสวิชา</Label><Input id="courseCode" name="courseCode" defaultValue={initial?.courseCode} required /></div>
       <div className="space-y-2"><Label htmlFor="courseName">ชื่อวิชา</Label><Input id="courseName" name="courseName" defaultValue={initial?.courseName} required /></div>
-      <div className="space-y-2"><Label htmlFor="facultyName">คณะ</Label><Input id="facultyName" name="facultyName" defaultValue={initial?.facultyName ?? ""} placeholder="เช่น คณะวิศวกรรมศาสตร์" minLength={2} maxLength={120} required /><p className="text-xs text-muted-foreground">ใช้เป็นชื่อคณะด้านบนใบปะหน้าซอง</p></div>
+      <div className="min-w-0 space-y-2"><Label htmlFor="facultyName">คณะ</Label><Select name="facultyName" required defaultValue={PSU_FACULTY_NAMES.includes(initial?.facultyName as typeof PSU_FACULTY_NAMES[number]) ? initial!.facultyName! : undefined}><SelectTrigger id="facultyName"><SelectValue placeholder="เลือกคณะ" /></SelectTrigger><SelectContent>{PSU_FACULTY_NAMES.map(name => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent></Select><p className="text-xs text-muted-foreground">เฉพาะวิทยาเขตหาดใหญ่ · ใช้เติมบนใบปะหน้าซอง</p>{initial?.facultyName && !PSU_FACULTY_NAMES.includes(initial.facultyName as typeof PSU_FACULTY_NAMES[number]) ? <p className="text-xs text-muted-foreground">ค่าเดิม: {initial.facultyName} — กรุณาเลือกคณะจากรายการก่อนบันทึก</p> : null}</div>
       <div className="space-y-2"><Label htmlFor="groupNo">กลุ่มเรียน</Label><Input id="groupNo" name="groupNo" defaultValue={initial?.groupNo} required /></div>
       <div className="sm:col-span-2"><SubmitButton>{initial ? "บันทึกแก้ไขรายวิชา" : "เพิ่มรายวิชา"}</SubmitButton></div>
     </form>
@@ -70,7 +72,7 @@ export function ExamRoomForm({ subjects, rooms, initial }: { subjects: Option[];
     <form action={action} className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
       <div className="sm:col-span-2"><ActionMessage state={state} /></div>
       <input type="hidden" name="examRoomId" value={initial?.id ?? ""} />
-      <SelectField name="subjectId" label="รายวิชา" options={subjects} defaultValue={initial?.subjectId} />
+      <SelectField name="subjectId" label="รายวิชา" options={initial ? subjects.filter(subject => subject.id === initial.subjectId) : subjects} defaultValue={initial?.subjectId} />
       <SelectField name="roomId" label="ห้องสอบ" options={rooms} defaultValue={initial?.roomId} />
       <div className="space-y-2"><Label htmlFor="examDate">วันที่สอบ</Label><Input id="examDate" name="examDate" type="date" defaultValue={initial?.examDate} required /></div>
       <div className="grid grid-cols-2 gap-3">

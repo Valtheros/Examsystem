@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { FACTORY_RESET_PHRASE, MAX_EXAM_FILE_BYTES } from "@/lib/constants";
 import { examRoundSchema, factoryResetSchema, passwordSchema, subjectSchema, transitionSchema, uploadUrlSchema } from "@/lib/validation";
+import { PSU_FACULTY_NAMES } from "@/lib/psu-faculties";
 
 describe("security validation", () => {
   it("requires a faculty when creating or editing a subject", () => {
@@ -9,6 +10,9 @@ describe("security validation", () => {
     expect(subjectSchema.safeParse(subject).success).toBe(false);
     expect(subjectSchema.safeParse({ ...subject, facultyName: "   " }).success).toBe(false);
     expect(subjectSchema.parse({ ...subject, facultyName: " คณะวิศวกรรมศาสตร์ " }).facultyName).toBe("คณะวิศวกรรมศาสตร์");
+    expect(PSU_FACULTY_NAMES).toHaveLength(16);
+    expect(subjectSchema.safeParse({ ...subject, facultyName: "คณะศึกษาศาสตร์" }).success).toBe(false);
+    expect(subjectSchema.safeParse({ ...subject, facultyName: "วิทยาลัยนานาชาติ" }).success).toBe(false);
   });
   it("accepts standard and custom exam rounds but rejects the removed handover status", () => {
     for (const name of ["กลางภาค", "ปลายภาค", "สอบชดเชย"]) expect(examRoundSchema.safeParse({ name, academicYear: "2569", semester: "1" }).success).toBe(true);

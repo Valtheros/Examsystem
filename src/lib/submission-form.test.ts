@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emptySubmissionForm, submissionFormSchema, validateRequestedRooms } from "./submission-form";
+import { emptySubmissionForm, requestedCountError, submissionFormSchema, validateRequestedRooms } from "./submission-form";
 import { calculatePrintCount } from "./printing";
 import { canDownloadExamFile, canUploadExamFile } from "./permissions";
 
@@ -34,5 +34,10 @@ describe("submission and printing rules", () => {
     expect(canDownloadExamFile(context)).toBe(true);
     expect(canDownloadExamFile({ ...context, role: "เจ้าหน้าที่" })).toBe(false);
     expect(canUploadExamFile({ ...context, status: "กำลังพิมพ์" }, "พร้อมพิมพ์")).toBe(false);
+  });
+  it("explains excessive quantities without serialized validator errors", () => {
+    expect(requestedCountError(10001, 50, true)).toContain("ห้องนี้รองรับ 50 คน");
+    expect(requestedCountError(1.5, 50, true)).toContain("จำนวนเต็ม");
+    expect(() => validateRequestedRooms([{ examRoomId: id, count: 10001 }], [{ examRoomId: id, capacity: 50 }], true)).toThrow("จำนวนชุดข้อสอบต้องไม่เกิน 10,000");
   });
 });

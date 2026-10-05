@@ -1,3 +1,12 @@
+import { ZodError } from "zod";
+
+export function getErrorMessage(error: unknown, fallback = "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง") {
+  const message = error instanceof ZodError ? error.issues[0]?.message : error instanceof Error ? error.message : "";
+  // Database/ORM failures belong in server logs, not in the form's error message.
+  if (error instanceof Error && ("cause" in error || "code" in error) && !(error instanceof AppError)) return fallback;
+  return message && /[\u0E00-\u0E7F]/.test(message) ? message : error instanceof ZodError ? "กรุณาตรวจสอบข้อมูลที่กรอกให้ถูกต้อง" : fallback;
+}
+
 export class AppError extends Error {
   constructor(
     message: string,

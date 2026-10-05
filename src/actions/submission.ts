@@ -29,6 +29,11 @@ export async function saveSubmissionAction(input: unknown): Promise<ActionState>
       const [subject] = await tx.select({ id: subjects.id }).from(subjects).innerJoin(examRounds, eq(subjects.roundId, examRounds.id))
         .where(and(eq(subjects.id, data.subjectId), eq(subjects.instructorId, session.user.id), eq(examRounds.isActive, true))).limit(1);
       if (!subject) throw new Error("ไม่พบรายวิชาของคุณในรอบสอบที่เปิดใช้งาน");
+      // Same subject -> sorted rooms lock order as scheduling; capacity edits cannot race this snapshot.
+      const assigned = await tx.select({ roomId: examRooms.roomId }).from(examRooms).where(eq(examRooms.subjectId, subject.id));
+      for (const roomId of [...new Set(assigned.map(row => row.roomId))].sort()) {
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`room:${roomId}`}))`);
+      }
       const schedules = await tx.select({ examRoomId: examRooms.id, capacity: rooms.capacity, roomCode: rooms.code, roomName: rooms.name, building: rooms.building, examDate: examRooms.examDate, startsAt: examRooms.startsAt, endsAt: examRooms.endsAt, note: examRooms.note }).from(examRooms).innerJoin(rooms, eq(examRooms.roomId, rooms.id)).where(eq(examRooms.subjectId, subject.id));
       validateRequestedRooms(data.roomCounts, schedules);
       let id = data.requestId;

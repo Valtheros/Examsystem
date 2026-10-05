@@ -31,16 +31,25 @@ export const emptySubmissionForm: DraftSubmissionForm = {
   department: "", language: "", printLayout: "", otherPrintLayout: "", materials: [], otherMaterials: "",
   computerAnswerSheet: "", instructions: "", scheduleType: "", coordinatorPhone: "",
 };
-export const requestedRoomsSchema = z.array(z.object({ examRoomId: z.uuid(), count: z.number().int().min(0).max(10000) })).min(1)
+const copyCountSchema = z.number({ error: "กรุณากรอกจำนวนชุดข้อสอบเป็นตัวเลข" }).int("กรุณากรอกจำนวนชุดข้อสอบเป็นจำนวนเต็ม").min(0, "จำนวนชุดข้อสอบต้องไม่ติดลบ").max(10000, "จำนวนชุดข้อสอบต้องไม่เกิน 10,000 ชุดต่อห้อง");
+export const requestedRoomsSchema = z.array(z.object({ examRoomId: z.uuid(), count: copyCountSchema })).min(1, "รายวิชานี้ยังไม่มีห้องสอบ กรุณาติดต่อเจ้าหน้าที่")
   .refine((rows) => new Set(rows.map((row) => row.examRoomId)).size === rows.length, "ห้องสอบซ้ำ");
 
+export function requestedCountError(count: number, capacity: number, complete = false) {
+  if (Number.isFinite(count) && count > capacity) return `ห้องนี้รองรับ ${capacity.toLocaleString("th-TH")} คน กรุณาขอไม่เกิน ${capacity.toLocaleString("th-TH")} ชุด หากต้องการเพิ่มห้องให้ติดต่อเจ้าหน้าที่`;
+  const parsed = copyCountSchema.safeParse(count);
+  if (!parsed.success) return parsed.error.issues[0].message;
+  return complete && count < 1 ? "กรุณากรอกจำนวนชุดข้อสอบอย่างน้อย 1 ชุด" : "";
+}
+
 export function validateRequestedRooms(rows: z.infer<typeof requestedRoomsSchema>, schedules: { examRoomId: string; capacity: number }[], complete = false) {
-  requestedRoomsSchema.parse(rows);
+  const parsed = requestedRoomsSchema.safeParse(rows);
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "กรุณาตรวจสอบจำนวนชุดข้อสอบ");
   if (rows.length !== schedules.length) throw new Error("กรุณาระบุจำนวนให้ครบทุกห้องของวิชา");
   for (const row of rows) {
     const schedule = schedules.find((entry) => entry.examRoomId === row.examRoomId);
     if (!schedule) throw new Error("ห้องสอบไม่อยู่ในรายวิชานี้");
-    if (row.count > schedule.capacity) throw new Error("จำนวนชุดที่ขอเกินความจุห้อง กรุณาติดต่อเจ้าหน้าที่เพื่อจัดห้องเพิ่ม");
-    if (complete && row.count < 1) throw new Error("กรุณากรอกจำนวนชุดข้อสอบมากกว่า 0 ให้ครบทุกห้อง");
+    const error = requestedCountError(row.count, schedule.capacity, complete);
+    if (error) throw new Error(error);
   }
 }
