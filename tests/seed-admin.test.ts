@@ -5,13 +5,19 @@ const mocks = vi.hoisted(() => ({
   limit: vi.fn(),
   end: vi.fn(),
   hashPassword: vi.fn(),
+  verifyPassword: vi.fn(),
   insert: vi.fn(),
   values: vi.fn(),
+  update: vi.fn(),
+  set: vi.fn(),
+  delete: vi.fn(),
+  where: vi.fn(),
+  execute: vi.fn(),
   transaction: vi.fn(),
 }));
 
 vi.mock("postgres", () => ({ default: () => ({ end: mocks.end }) }));
-vi.mock("better-auth/crypto", () => ({ hashPassword: mocks.hashPassword }));
+vi.mock("better-auth/crypto", () => ({ hashPassword: mocks.hashPassword, verifyPassword: mocks.verifyPassword }));
 vi.mock("drizzle-orm/postgres-js", () => ({
   drizzle: () => ({
     select: () => ({ from: () => ({ where: () => ({ limit: mocks.limit }) }) }),
@@ -40,9 +46,21 @@ beforeEach(() => {
   mocks.limit.mockResolvedValue([]);
   mocks.end.mockResolvedValue(undefined);
   mocks.hashPassword.mockResolvedValue("hashed-password");
+  mocks.verifyPassword.mockResolvedValue(false);
   mocks.values.mockResolvedValue(undefined);
   mocks.insert.mockReturnValue({ values: mocks.values });
-  mocks.transaction.mockImplementation(async (callback) => callback({ insert: mocks.insert }));
+  mocks.where.mockResolvedValue(undefined);
+  mocks.set.mockReturnValue({ where: mocks.where });
+  mocks.update.mockReturnValue({ set: mocks.set });
+  mocks.delete.mockReturnValue({ where: mocks.where });
+  mocks.execute.mockResolvedValue(undefined);
+  mocks.transaction.mockImplementation(async (callback) => callback({
+    insert: mocks.insert,
+    select: () => ({ from: () => ({ where: () => ({ limit: mocks.limit }) }) }),
+    update: mocks.update,
+    delete: mocks.delete,
+    execute: mocks.execute,
+  }));
 });
 
 afterEach(() => {
@@ -105,5 +123,47 @@ describe("Docker administrator bootstrap", () => {
     expect(mocks.hashPassword).not.toHaveBeenCalled();
     expect(mocks.transaction).not.toHaveBeenCalled();
     expect(mocks.end).toHaveBeenCalledOnce();
+  });
+
+  it("syncs an existing administrator password, revokes sessions and records an audit", async () => {
+    process.argv = [...originalArgv, "--sync-existing"];
+    mocks.limit.mockResolvedValueOnce([{ id: "existing-admin", role: "ผู้ดูแลระบบ" }])
+      .mockResolvedValueOnce([{ id: "credential", password: "old-hash" }]);
+    await import("../scripts/seed-admin");
+    expect(mocks.verifyPassword).toHaveBeenCalledWith({ hash: "old-hash", password: "DockerFixture123!" });
+    expect(mocks.update.mock.calls.map(([table]) => getTableName(table))).toEqual(["accounts", "users"]);
+    expect(mocks.set).toHaveBeenNthCalledWith(1, expect.objectContaining({ password: "hashed-password" }));
+    expect(mocks.set).toHaveBeenNthCalledWith(2, expect.objectContaining({ name: "Test administrator", email: "admin@example.local", mustChangePassword: true }));
+    expect(mocks.delete.mock.calls.map(([table]) => getTableName(table))).toEqual(["sessions"]);
+    expect(mocks.values).toHaveBeenCalledWith(expect.objectContaining({ action: "USER_PASSWORD_RESET", targetId: "existing-admin", metadata: { source: "docker_bootstrap_sync" } }));
+    expect(console.log).not.toHaveBeenCalledWith(expect.stringContaining("DockerFixture123!"));
+  });
+
+  it("keeps sessions and password-change state if the env password already matches", async () => {
+    process.argv = [...originalArgv, "--sync-existing"];
+    mocks.limit.mockResolvedValueOnce([{ id: "existing-admin", role: "ผู้ดูแลระบบ" }])
+      .mockResolvedValueOnce([{ id: "credential", password: "matching-hash" }]);
+    mocks.verifyPassword.mockResolvedValue(true);
+    await import("../scripts/seed-admin");
+    expect(mocks.hashPassword).not.toHaveBeenCalled();
+    expect(mocks.delete).not.toHaveBeenCalled();
+    expect(mocks.insert).not.toHaveBeenCalled();
+    expect(mocks.set).toHaveBeenCalledOnce();
+    expect(mocks.set.mock.calls[0][0]).not.toHaveProperty("mustChangePassword");
+  });
+
+  it("restores a missing password credential for the configured administrator", async () => {
+    process.argv = [...originalArgv, "--sync-existing"];
+    mocks.limit.mockResolvedValueOnce([{ id: "existing-admin", role: "ผู้ดูแลระบบ" }]).mockResolvedValueOnce([]);
+    await import("../scripts/seed-admin");
+    expect(mocks.values).toHaveBeenNthCalledWith(1, expect.objectContaining({ userId: "existing-admin", providerId: "credential", password: "hashed-password" }));
+    expect(mocks.delete).toHaveBeenCalledOnce();
+  });
+
+  it("refuses to overwrite a non-administrator during sync", async () => {
+    process.argv = [...originalArgv, "--sync-existing"];
+    mocks.limit.mockResolvedValueOnce([{ id: "teacher", role: "อาจารย์" }]);
+    await expect(import("../scripts/seed-admin")).rejects.toThrow("non-administrator");
+    expect(mocks.transaction).not.toHaveBeenCalled();
   });
 });
