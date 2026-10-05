@@ -1,5 +1,15 @@
 # ผลทดสอบ Docker Compose — 4 ตุลาคม 2569
 
+## แก้ด่วนล่าสุด 5 ตุลาคม 2569 — ไม่รีเซ็ตรหัสเมื่อเปิด Docker
+
+ผู้ใช้ยกเลิกการ sync อัตโนมัติแล้ว Local startup กลับมาใช้ `db:seed-admin -- --if-empty` ส่วน `--sync-existing` ใช้เฉพาะกู้บัญชีด้วยคำสั่ง manual ใน README ผลด้านล่างที่กล่าวถึงการเขียนทับรหัสเป็นประวัติของรุ่นก่อนการแก้นี้ ไม่ใช่พฤติกรรมปัจจุบัน
+
+- ทดสอบ recreate/start container setup กับฐานข้อมูลเดิม: log แสดง `An administrator already exists; bootstrap skipped.` และจบด้วย exit code 0
+- เปรียบเทียบ checksum ของ users, accounts และ sessions ก่อน/หลัง: เหมือนเดิมทั้งหมด จึงไม่เปลี่ยน hash รหัสผ่าน ข้อมูลบัญชี session หรือ must_change_password
+- เว็บเดิมตอบ `/api/health` HTTP 200 ไม่ล้าง PostgreSQL หรือ MinIO
+- Unit tests ผ่าน 55 รายการ (integration tests ที่ต้องเตรียมฐานข้อมูลเฉพาะข้าม 3 รายการ) และเพิ่ม regression test ห้าม startup เปิด `--sync-existing`
+- ESLint และ Next.js production build ผ่าน
+
 ## อัปเดต 5 ตุลาคม 2569 — ผู้ดูแลตาม env
 
 คำสั่งผู้ใช้ล่าสุดให้ local Docker อัปเดตบัญชีผู้ดูแลตาม env แม้มีบัญชีอยู่แล้ว ผลทดสอบใหม่นี้แทนพฤติกรรม bootstrap แบบข้ามบัญชีเดิมในผลวันที่ 4 ตุลาคมด้านล่าง:

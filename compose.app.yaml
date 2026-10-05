@@ -13,7 +13,7 @@ services:
     environment:
       DATABASE_URL: postgresql://exam_app:exam_local_password@postgres:5432/examsystem
       DIRECT_DATABASE_URL: postgresql://exam_app:exam_local_password@postgres:5432/examsystem
-    command: ["/bin/sh", "-ec", "npm run db:migrate && npm run db:seed-admin -- --sync-existing"]
+    command: ["/bin/sh", "-ec", "npm run db:migrate && npm run db:seed-admin -- --if-empty"]
     depends_on:
       postgres:
         condition: service_healthy

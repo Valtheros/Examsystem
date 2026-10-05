@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { getTableName } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -70,6 +71,12 @@ afterEach(() => {
 });
 
 describe("Docker administrator bootstrap", () => {
+  it("never enables password synchronization in automatic Docker startup", () => {
+    const compose = readFileSync(new URL("../compose.app.yaml", import.meta.url), "utf8");
+    expect(compose).toContain("npm run db:seed-admin -- --if-empty");
+    expect(compose).not.toContain("--sync-existing");
+  });
+
   it("creates the first administrator and a hashed credential in one transaction", async () => {
     await import("../scripts/seed-admin");
     expect(mocks.transaction).toHaveBeenCalledOnce();
@@ -91,6 +98,8 @@ describe("Docker administrator bootstrap", () => {
     expect(mocks.hashPassword).not.toHaveBeenCalled();
     expect(mocks.transaction).not.toHaveBeenCalled();
     expect(mocks.limit).toHaveBeenCalledOnce();
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.delete).not.toHaveBeenCalled();
     expect(mocks.end).toHaveBeenCalledOnce();
   });
 

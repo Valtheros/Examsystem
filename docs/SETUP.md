@@ -2,7 +2,7 @@
 
 ## เครื่องพัฒนาปัจจุบัน — ใช้ข้อมูล Docker เดิม
 
-สำหรับผู้ที่ clone ใหม่ ใช้ Docker อย่างเดียวได้: คัดลอก `.env.app.example` เป็น `.env.app.local` แล้วรัน `docker compose -f compose.yaml -f compose.app.yaml up -d --build` บริการ `setup` รัน migration และสร้างหรืออัปเดตบัญชีผู้ดูแลตาม `BOOTSTRAP_ADMIN_*` ก่อนเปิด `web` ไม่ต้องติดตั้ง Node.js/npm ในเครื่อง ดูขั้นตอนสั้นใน [README](../README.md)
+สำหรับผู้ที่ clone ใหม่ ใช้ Docker อย่างเดียวได้: คัดลอก `.env.app.example` เป็น `.env.app.local` แล้วรัน `docker compose -f compose.yaml -f compose.app.yaml up -d --build` บริการ `setup` รัน migration และสร้างบัญชีผู้ดูแลตาม `BOOTSTRAP_ADMIN_*` เฉพาะเมื่อยังไม่มีผู้ดูแล ก่อนเปิด `web` ไม่ต้องติดตั้ง Node.js/npm ในเครื่อง ดูขั้นตอนสั้นใน [README](../README.md)
 
 เว็บล่าสุดเปิดที่ `http://localhost:3000` ใช้ `compose.yaml` ร่วมกับ `compose.app.yaml` ไม่ใช่ production Compose ซึ่งใช้ชื่อ volume ต่างกัน
 
@@ -14,7 +14,7 @@ npm run db:migrate
 docker compose -f compose.yaml -f compose.app.yaml up -d --build web
 ```
 
-ไม่ใช้ `down -v` หรือ reset ฐานข้อมูลเดิม บริการ `setup` ใช้ migration ตามลำดับและ `db:seed-admin -- --sync-existing` เพื่ออัปเดตบัญชีผู้ดูแลที่กำหนดใน env ตามคำสั่งผู้ใช้ล่าสุด หากรหัสไม่ตรง ระบบจะยกเลิก sessions ของผู้ดูแล บันทึก Audit Log และบังคับเปลี่ยนรหัสผ่าน หากเปลี่ยนรหัสในเว็บ ให้ตั้งค่าใน env ให้ตรงก่อนเปิด Compose ใหม่ด้วย การตั้งค่านี้ใช้บัญชี Docker local เดิม, Mailpit สำหรับอีเมล และ bind เว็บเฉพาะ 127.0.0.1 ยังไม่ใช่การเปิดให้ใช้งานจากอินเทอร์เน็ต `.env.app.local` ใช้ตั้ง BETTER_AUTH_SECRET และบัญชีผู้ดูแลเฉพาะเครื่อง (ห้าม commit; เปลี่ยน secret ทำให้ต้อง login ใหม่) ไม่โหลด `.env.local` ของเครื่องเข้า container เพราะอาจมี token ของบริการอื่นที่ไม่เกี่ยวข้อง
+ไม่ใช้ `down -v` หรือ reset ฐานข้อมูลเดิม บริการ `setup` ใช้ migration ตามลำดับและ `db:seed-admin -- --if-empty` เพื่อสร้างผู้ดูแลครั้งแรกเท่านั้น หากมีผู้ดูแลแล้วจะไม่แก้รหัส ข้อมูลบัญชี sessions หรือ must_change_password การเปิด Docker/Compose ใหม่ต้องใช้รหัสที่เปลี่ยนในเว็บล่าสุดได้ `--sync-existing` สงวนไว้สำหรับคำสั่งกู้บัญชีที่รันเองตาม README ไม่ใส่ใน startup การตั้งค่านี้ใช้บัญชี Docker local เดิม, Mailpit สำหรับอีเมล และ bind เว็บเฉพาะ 127.0.0.1 ยังไม่ใช่การเปิดให้ใช้งานจากอินเทอร์เน็ต `.env.app.local` ใช้ตั้ง BETTER_AUTH_SECRET และบัญชีผู้ดูแลเฉพาะเครื่อง (ห้าม commit; เปลี่ยน secret ทำให้ต้อง login ใหม่) ไม่โหลด `.env.local` ของเครื่องเข้า container เพราะอาจมี token ของบริการอื่นที่ไม่เกี่ยวข้อง
 
 ก่อนย้ายไปเครื่องเซิร์ฟเวอร์ ให้กำหนดโดเมน TLS, secret จริง, บัญชี MinIO จำกัดสิทธิ์ และย้ายข้อมูล/ไฟล์จาก volumes เดิมอย่างชัดเจนตามขั้นตอนด้านล่าง ห้ามเปิด production Compose ใหม่แล้วเข้าใจว่าใช้ข้อมูลชุดเดิมโดยอัตโนมัติ
 
