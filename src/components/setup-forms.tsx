@@ -45,7 +45,7 @@ export function RoomForm() {
   );
 }
 
-export function SubjectForm({ rounds, instructors, initial }: { rounds: Option[]; instructors: Option[]; initial?: { id: string; roundId: string; instructorId: string; courseCode: string; courseName: string; groupNo: string } }) {
+export function SubjectForm({ rounds, instructors, initial }: { rounds: Option[]; instructors: Option[]; initial?: { id: string; roundId: string; instructorId: string; courseCode: string; courseName: string; facultyName: string | null; groupNo: string } }) {
   const [state, action] = useActionState(createSubjectAction, initialActionState);
   if (!rounds.length || !instructors.length) return <p className="border-l-2 border-primary py-3 pl-4 text-sm text-muted-foreground">{!rounds.length ? "กรุณาสร้างรอบสอบที่หน้า รอบสอบ ก่อนเพิ่มรายวิชา" : "ยังไม่มีอาจารย์ที่เปิดใช้งาน กรุณาให้ผู้ดูแลระบบสร้างบัญชีอาจารย์ก่อน"}</p>;
   return (
@@ -56,6 +56,7 @@ export function SubjectForm({ rounds, instructors, initial }: { rounds: Option[]
       <SelectField name="instructorId" label="อาจารย์ผู้รับผิดชอบ" options={instructors} defaultValue={initial?.instructorId} />
       <div className="space-y-2"><Label htmlFor="courseCode">รหัสวิชา</Label><Input id="courseCode" name="courseCode" defaultValue={initial?.courseCode} required /></div>
       <div className="space-y-2"><Label htmlFor="courseName">ชื่อวิชา</Label><Input id="courseName" name="courseName" defaultValue={initial?.courseName} required /></div>
+      <div className="space-y-2"><Label htmlFor="facultyName">คณะ</Label><Input id="facultyName" name="facultyName" defaultValue={initial?.facultyName ?? ""} placeholder="เช่น คณะวิศวกรรมศาสตร์" minLength={2} maxLength={120} required /><p className="text-xs text-muted-foreground">ใช้เป็นชื่อคณะด้านบนใบปะหน้าซอง</p></div>
       <div className="space-y-2"><Label htmlFor="groupNo">กลุ่มเรียน</Label><Input id="groupNo" name="groupNo" defaultValue={initial?.groupNo} required /></div>
       <div className="sm:col-span-2"><SubmitButton>{initial ? "บันทึกแก้ไขรายวิชา" : "เพิ่มรายวิชา"}</SubmitButton></div>
     </form>

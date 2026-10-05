@@ -124,6 +124,7 @@ export async function createSubjectAction(
       targetId: created?.id,
       metadata: {
         courseCode: parsed.data.courseCode,
+        facultyName: parsed.data.facultyName,
         groupNo: parsed.data.groupNo,
       },
     });

@@ -99,6 +99,7 @@ export const subjects = appSchema.table(
       .references(() => examRounds.id, { onDelete: "cascade" }),
     courseCode: text("course_code").notNull(),
     courseName: text("course_name").notNull(),
+    facultyName: text("faculty_name"),
     groupNo: text("group_no").notNull(),
     instructorId: text("instructor_id")
       .notNull()

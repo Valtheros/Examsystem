@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import { FACTORY_RESET_PHRASE, MAX_EXAM_FILE_BYTES } from "@/lib/constants";
-import { examRoundSchema, factoryResetSchema, passwordSchema, transitionSchema, uploadUrlSchema } from "@/lib/validation";
+import { examRoundSchema, factoryResetSchema, passwordSchema, subjectSchema, transitionSchema, uploadUrlSchema } from "@/lib/validation";
 
 describe("security validation", () => {
+  it("requires a faculty when creating or editing a subject", () => {
+    const subject = { roundId: "019b2b45-4d7a-7000-8000-000000000001", courseCode: "345-211", courseName: "Programming", groupNo: "1", instructorId: "teacher" };
+    expect(subjectSchema.safeParse(subject).success).toBe(false);
+    expect(subjectSchema.safeParse({ ...subject, facultyName: "   " }).success).toBe(false);
+    expect(subjectSchema.parse({ ...subject, facultyName: " คณะวิศวกรรมศาสตร์ " }).facultyName).toBe("คณะวิศวกรรมศาสตร์");
+  });
   it("accepts standard and custom exam rounds but rejects the removed handover status", () => {
     for (const name of ["กลางภาค", "ปลายภาค", "สอบชดเชย"]) expect(examRoundSchema.safeParse({ name, academicYear: "2569", semester: "1" }).success).toBe(true);
     expect(transitionSchema.safeParse({ requestId: "019b2b45-4d7a-7000-8000-000000000001", toStatus: "ส่งมอบแล้ว" }).success).toBe(false);

@@ -43,6 +43,13 @@
       "when": 1791022308931,
       "tag": "0005_retire_delivery_distribution",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791210723168,
+      "tag": "0006_subject_faculty",
+      "breakpoints": true
     }
   ]
 }

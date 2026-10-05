@@ -53,22 +53,18 @@ export async function POST(
     }
 
     const pdf = await createCoverPdf({
-      requestNo: data.request.requestNo,
       courseCode: data.subject.courseCode,
       courseName: data.subject.courseName,
+      facultyName: data.subject.facultyName,
       groupNo: data.subject.groupNo,
       examDate: data.room.examDate,
       startsAt: data.room.startsAt,
       endsAt: data.room.endsAt,
-      roomCode: data.room.roomCode,
       roomName: data.room.roomName,
-      building: data.room.building,
       studentCount: data.room.studentCount,
-      baseCopyCount: data.room.baseCopyCount,
       reserveCount: data.room.reserveCount,
       printCount: data.room.printCount,
       submissionForm: data.request.submissionForm,
-      printRevision: job.revision,
       envelopeNo: `${allRooms.findIndex((room) => room.id === data.room.id) + 1}/${allRooms.length}`,
       senderName: data.room.senderName,
       note: data.room.note,

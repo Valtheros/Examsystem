@@ -1,0 +1,1 @@
+ALTER TABLE "app"."subjects" ADD COLUMN "faculty_name" text;

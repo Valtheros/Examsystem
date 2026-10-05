@@ -61,6 +61,7 @@ test("four roles: accounts → two rooms → form/PDF → rework → quantities/
   await choose("รอบสอบ", new RegExp(round)); await choose("อาจารย์ผู้รับผิดชอบ", new RegExp(teacher));
   await page.getByLabel("รหัสวิชา", { exact: true }).fill(course);
   await page.getByLabel("ชื่อวิชา", { exact: true }).fill("การเขียนโปรแกรมและการจัดพิมพ์ข้อสอบสำหรับรายวิชาที่มีชื่อยาว");
+  await page.getByLabel("คณะ", { exact: true }).fill("คณะวิศวกรรมศาสตร์");
   await page.getByLabel("กลุ่มเรียน").fill("1");
   await page.getByRole("button", { name: "เพิ่มรายวิชา", exact: true }).click();
   await expect(page.getByText("เพิ่มรายวิชาแล้ว", { exact: true })).toBeVisible();

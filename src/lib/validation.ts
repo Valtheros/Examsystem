@@ -75,6 +75,7 @@ export const subjectSchema = z.object({
   roundId: z.uuid(),
   courseCode: z.string().trim().min(2).max(30),
   courseName: z.string().trim().min(2).max(200),
+  facultyName: z.string().trim().min(2, "กรุณาระบุคณะ").max(120, "ชื่อคณะต้องไม่เกิน 120 ตัวอักษร"),
   groupNo: z.string().trim().min(1).max(30),
   instructorId: z.string().min(1),
 });

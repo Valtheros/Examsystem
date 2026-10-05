@@ -7,12 +7,12 @@ import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import type { DraftSubmissionForm } from "./submission-form";
 
 export type CoverData = {
-  requestNo: string; courseCode: string; courseName: string; groupNo: string;
+  courseCode: string; courseName: string; facultyName: string | null; groupNo: string;
   examDate: string; startsAt: string; endsAt: string;
-  roomCode: string; roomName: string; building?: string | null;
-  studentCount: number; baseCopyCount: number; reserveCount: number; printCount: number;
+  roomName: string;
+  studentCount: number; reserveCount: number; printCount: number;
   senderName: string; note?: string | null;
-  envelopeNo: string; printRevision: number; submissionForm: DraftSubmissionForm | null;
+  envelopeNo: string; submissionForm: DraftSubmissionForm | null;
 };
 
 function wrap(value: string, font: PDFFont, size: number, width: number) {
@@ -63,7 +63,12 @@ export async function createCoverPdf(data: CoverData) {
 
   const logoHeight = 78, logoWidth = logo.width / logo.height * logoHeight;
   page.drawImage(logo, { x: (595.28 - logoWidth) / 2, y: 752, width: logoWidth, height: logoHeight });
-  center("คณะวิทยาศาสตร์", 730, 16);
+  const faculty = data.facultyName?.trim() || "คณะ........................................";
+  let facultySize = 16;
+  while (font.widthOfTextAtSize(faculty, facultySize) > width && facultySize > 9) facultySize -= 0.5;
+  const facultyLines = wrap(faculty, font, facultySize, width);
+  if (facultyLines.length > 1) overflow.push({ label: "คณะ", value: faculty });
+  center(facultyLines[0], 730, facultySize);
   center("มหาวิทยาลัยสงขลานครินทร์", 705, 16);
 
   const course = `การสอบวิชา ${data.courseName}`;
@@ -78,13 +83,14 @@ export async function createCoverPdf(data: CoverData) {
   const date = new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(year, month - 1, day)));
   field("สอบวันที่", date, left, 610, 280);
   field("เวลา", `${data.startsAt.slice(0, 5)} - ${data.endsAt.slice(0, 5)} น.`, 360, 610, 193);
-  field("ห้องสอบ", `${data.roomCode} ${data.roomName}`, left, 585, 280);
+  field("ห้องสอบ", data.roomName, left, 585, 280);
   field("เลขประจำซอง", data.envelopeNo, 360, 585, 193);
   field("จำนวนนักศึกษา", `${data.studentCount} คน`, left, 560, 280);
   field("สาขาวิชา", data.submissionForm?.department ?? "", 360, 560, 193);
   field("ซองนี้มีข้อสอบ", `${data.printCount} ชุด (รวมสำรอง)`, left, 535, width);
   field("ข้อสอบสำรอง", `${data.reserveCount} ชุด`, left, 510, 280);
-  field("พิมพ์หลัก", `${data.baseCopyCount} ชุด`, 360, 510, 193);
+  field("นศ.คณะ", "", 360, 510, 125);
+  field("ตอน", "", 495, 510, 58);
 
   center("อุปกรณ์ที่ใช้หรือคำแนะนำผู้คุมสอบเพิ่มเติม", 480, 13);
   const form = data.submissionForm;
@@ -133,7 +139,6 @@ export async function createCoverPdf(data: CoverData) {
   }
   field("หมายเหตุ", "", left + 10, 91, width - 24);
   dotted(left + 10, right - 14, 73);
-  text(`${data.requestNo} · รุ่นพิมพ์ ${data.printRevision}`, left, 35, 8);
 
   // Keep the reference form on page one; unusually long values continue without clipping.
   if (overflow.length) {
@@ -142,7 +147,7 @@ export async function createCoverPdf(data: CoverData) {
     let y = 752;
     const heading = () => {
       text("รายละเอียดเพิ่มเติมใบปะหน้าซองข้อสอบ", left, 800, 15, continuation);
-      text(`${data.courseCode} · ซอง ${data.envelopeNo} · ${data.requestNo}`, left, 777, 10, continuation);
+      text(`${data.courseCode} · ซอง ${data.envelopeNo}`, left, 777, 10, continuation);
     };
     heading();
     for (const entry of overflow) {
