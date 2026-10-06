@@ -6,6 +6,7 @@ import { examRequests, examRounds, user } from "@/db/schema";
 import { REQUEST_STATUSES, ROLE_LABELS, ROLES } from "@/lib/constants";
 import { requirePageSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
+import { InstructorNotificationSummary } from "@/components/instructor-notifications";
 
 export default async function DashboardPage() {
   const session = await requirePageSession();
@@ -59,6 +60,7 @@ export default async function DashboardPage() {
         <h1 className="mt-2 break-words text-2xl font-semibold leading-snug tracking-tight sm:text-3xl">สวัสดี {session.user.name}</h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed sm:text-base">{ROLE_LABELS[session.user.role]}</p>
       </header>
+      <InstructorNotificationSummary />
       <section aria-labelledby="your-tasks">
         <h2 id="your-tasks" className="mb-4 text-xl font-semibold">งานของคุณ</h2>
         <ul className="divide-y border-b">

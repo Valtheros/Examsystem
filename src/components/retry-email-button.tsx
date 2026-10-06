@@ -14,8 +14,8 @@ export function RetryEmailButton({ id }: { id: string }) {
     setPending(true);
     try {
       const response = await fetch(`/api/admin/notifications/${id}/retry`, { method: "POST" });
-      const result = (await response.json()) as { message?: string; error?: string };
-      if (!response.ok) throw new Error(result.message || result.error || "ส่งไม่สำเร็จ");
+      const result = (await response.json()) as { ok?: boolean; message?: string; error?: string };
+      if (!response.ok || result.ok !== true) throw new Error(result.message || result.error || "ส่งไม่สำเร็จ");
       toast.success("ส่งอีเมลสำเร็จ");
       router.refresh();
     } catch (error) {

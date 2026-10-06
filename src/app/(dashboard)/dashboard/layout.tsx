@@ -1,9 +1,12 @@
 import { DashboardNav } from "@/components/dashboard-nav";
 import { requirePageSession } from "@/lib/session";
+import { ROLES } from "@/lib/constants";
+import { getInstructorNotifications } from "@/lib/notifications";
+import { InstructorNotificationsProvider } from "@/components/instructor-notifications";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const session = await requirePageSession();
-  return (
+  const content = (
     <div className="min-h-dvh bg-background">
       <DashboardNav
         role={session.user.role}
@@ -15,5 +18,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       </main>
     </div>
   );
+  if (session.user.role !== ROLES.INSTRUCTOR) return content;
+  return <InstructorNotificationsProvider key={session.user.id} userId={session.user.id} initialNotifications={await getInstructorNotifications(session.user.id)}>{content}</InstructorNotificationsProvider>;
 }
 import type { ReactNode } from "react";

@@ -223,9 +223,22 @@ test("four roles: accounts → two rooms → form/PDF → rework → quantities/
   // The submit button changes to a pending label immediately; wait for actual completion.
   await expect(page.getByRole("button", { name: "กำลังส่ง...", exact: true })).toHaveCount(0, { timeout: 45_000 });
   await expect(page.getByRole("button", { name: "ยืนยันส่งข้อสอบให้หน่วยโสต" })).toHaveCount(0);
+  const liveContext = await page.context().browser()!.newContext({ baseURL: new URL(page.url()).origin });
+  const liveTeacher = await liveContext.newPage();
+  await liveTeacher.goto("/login");
+  await liveTeacher.getByLabel("Username", { exact: true }).fill(teacher);
+  await liveTeacher.getByLabel("รหัสผ่าน", { exact: true }).fill(personal);
+  await liveTeacher.getByRole("button", { name: "เข้าสู่ระบบ", exact: true }).click();
+  await expect(liveTeacher).toHaveURL(/\/dashboard$/);
+  await expect(liveTeacher.getByText("เหตุผล: กรุณาตรวจข้อความคำแนะนำอีกครั้ง", { exact: true })).toBeVisible();
+  await expect(liveTeacher.getByText("ข้อสอบของคุณมีการอัปเดต", { exact: true })).toHaveCount(0);
   await logout(); await login("review.print"); await page.goto(requestUrl);
   await page.getByRole("button", { name: "รับงานและเตรียมพิมพ์", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "ไฟล์ที่ใช้พิมพ์" })).toContainText("workflow-v2.pdf", { timeout: 45_000 });
+  // A live teacher tab updates through its one polling loop, not a page refresh.
+  await expect(liveTeacher.getByText("ข้อสอบของคุณมีการอัปเดต", { exact: true })).toBeVisible({ timeout: 35_000 });
+  await expect(liveTeacher.getByText("หน่วยโสตรับงานแล้วและกำลังเตรียมพิมพ์", { exact: true })).toBeVisible();
+  await liveContext.close();
   await page.getByRole("button", { name: "ยืนยันไฟล์และจำนวนพิมพ์", exact: true }).click();
   await expect(page.getByRole("button", { name: "สร้างใบปะหน้าทุกห้อง" })).toBeEnabled();
   await page.getByRole("button", { name: "สร้างใบปะหน้าทุกห้อง" }).click();
@@ -233,7 +246,38 @@ test("four roles: accounts → two rooms → form/PDF → rework → quantities/
   const oldCoverHref = (await page.locator('a[href*="/api/cover-sheets/"]').filter({ hasText: "v1" }).first().getAttribute("href"))!;
   const oldPdf = await page.request.get(oldCoverHref); expect(oldPdf.ok()).toBe(true);
   await writeFile(info.outputPath("cover-before-rename.pdf"), await oldPdf.body());
-  await logout(); await login("review.admin"); await page.goto("/dashboard/users");
+  await logout(); await login(teacher, personal);
+  const updateRegion = page.getByRole("region", { name: "การอัปเดตข้อสอบล่าสุด", exact: true });
+  await expect(updateRegion.getByRole("link")).toHaveCount(2);
+  const feedResponse = await page.request.get("/api/notifications?userId=someone-else");
+  expect(feedResponse.headers()["cache-control"]).toBe("no-store");
+  const feed = (await feedResponse.json()).notifications;
+  expect(feed.filter((row: { requestId: string }) => requestUrl.endsWith(row.requestId))).toHaveLength(2);
+  expect(feed.every((row: object) => !("emailTo" in row) && !("lastError" in row))).toBe(true);
+  for (const dark of [false, true]) {
+    if ((await page.evaluate(() => document.documentElement.classList.contains("dark"))) !== dark) await page.getByRole("button", { name: "สลับโหมดสี", exact: true }).click();
+    for (const width of [360, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+      await page.screenshot({ path: info.outputPath(`teacher-notifications-${dark ? "dark" : "light"}-${width}.png`), fullPage: true });
+      await page.getByRole("button", { name: "การแจ้งเตือนข้อสอบ", exact: true }).click();
+      const sheet = page.getByRole("dialog", { name: "การแจ้งเตือนข้อสอบ", exact: true });
+      await expect(sheet.getByRole("link")).toHaveCount(2);
+      await expect(sheet).toContainText("กรุณาตรวจข้อความคำแนะนำอีกครั้ง");
+      expect(await sheet.evaluate(element => element.getBoundingClientRect().width <= innerWidth)).toBe(true);
+      await page.screenshot({ path: info.outputPath(`notification-sheet-${dark ? "dark" : "light"}-${width}.png`) });
+      await page.keyboard.press("Escape");
+      await expect(sheet).toHaveCount(0);
+    }
+  }
+  await updateRegion.getByRole("link").first().click(); await expect(page).toHaveURL(requestUrl);
+  await logout(); await login("review.admin"); await page.goto("/dashboard/notifications");
+  await expect(page.getByText(/^SMTP · Mailpit/)).toBeVisible();
+  const mailTest = page.waitForResponse(response => response.request().method() === "POST" && response.url().includes("/dashboard/notifications"));
+  await page.getByRole("button", { name: "ส่งเมลทดสอบ", exact: true }).click();
+  expect((await mailTest).ok()).toBe(true);
+  await expect(page.getByText(/เซิร์ฟเวอร์ยอมรับอีเมลทดสอบแล้ว/).first()).toBeVisible();
+  await page.goto("/dashboard/users");
   await teacherRow.getByText("จัดการบัญชี", { exact: true }).click();
   await expect(teacherRow.getByText("ตั้งรหัสผ่านชั่วคราว", { exact: true })).toHaveCount(0);
   await teacherRow.getByText("แก้รหัสผ่าน", { exact: true }).click();
@@ -293,6 +337,11 @@ test("four roles: accounts → two rooms → form/PDF → rework → quantities/
   await roomRow.getByRole("link", { name: "แก้ไขห้อง", exact: true }).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name: "แก้ไขห้องสอบ", exact: true })).toBeVisible();
+  await logout(); await login(teacher, personal);
+  await expect(page.getByRole("region", { name: "การอัปเดตข้อสอบล่าสุด", exact: true }).getByRole("link")).toHaveCount(3);
+  const finalEvents = (await (await page.request.get("/api/notifications")).json()).notifications;
+  expect(finalEvents.filter((row: { requestId: string }) => requestUrl.endsWith(row.requestId))).toHaveLength(4);
+  await page.screenshot({ path: info.outputPath("teacher-all-events-complete.png"), fullPage: true });
   await logout(); await login("review.admin"); await page.goto("/dashboard/users");
   await teacherRow.getByText("จัดการบัญชี", { exact: true }).click();
   await teacherRow.getByText("แก้รหัสผ่าน", { exact: true }).click();

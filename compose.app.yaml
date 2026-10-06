@@ -29,7 +29,6 @@ services:
         required: false
     environment:
       DATABASE_URL: postgresql://exam_app:exam_local_password@postgres:5432/examsystem
-      BETTER_AUTH_URL: http://localhost:3000
       NEXT_PUBLIC_APP_URL: http://localhost:3000
       STORAGE_BUCKET: exam-files
       STORAGE_INTERNAL_ENDPOINT: http://minio:9000
@@ -37,7 +36,6 @@ services:
       STORAGE_ACCESS_KEY_ID: minioadmin
       STORAGE_SECRET_ACCESS_KEY: minioadmin
       STORAGE_FORCE_PATH_STYLE: "true"
-      MAIL_TRANSPORT: smtp
       SMTP_HOST: mailpit
       SMTP_PORT: "1025"
     ports:

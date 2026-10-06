@@ -12,7 +12,7 @@
 - Better Auth อยู่ schema `better_auth`; ข้อมูลธุรกิจอยู่ schema `app`
 - MinIO private bucket บนเครื่องเซิร์ฟเวอร์ผ่าน S3 API; browser อัปโหลดตรงด้วย Presigned PUT
 - Next.js, PostgreSQL, MinIO และ Caddy รันด้วย Docker Compose; Caddy ออก HTTPS ให้โดเมนเว็บและโดเมนไฟล์
-- Nodemailer ใช้ Gmail OAuth2 บน production และ Mailpit สำหรับ local
+- Nodemailer ใช้ Gmail App Password (`gmail-app-password`) หรือ OAuth2 เดิม (`gmail`) และ Mailpit (`smtp`) เป็นค่าเริ่มต้น local; Gmail ตั้งค่าไม่ครบต้องแจ้งข้อผิดพลาด ไม่ fallback เข้า Mailpit
 - ไม่ใช้ Supabase, Vercel หรือ Cloudflare R2 ใน production; ฐานข้อมูลและไฟล์อยู่บนเครื่องเซิร์ฟเวอร์ที่รัน Docker
 
 Local Docker quick start: `.env.app.example` -> `.env.app.local` แล้ว `docker compose -f compose.yaml -f compose.app.yaml up -d --build` บริการ setup รัน migration และ `db:seed-admin -- --if-empty` ก่อนเปิด web ตามคำสั่งผู้ใช้ล่าสุด 5 ตุลาคม 2569 ห้าม reset/sync บัญชีผู้ดูแลอัตโนมัติเมื่อเปิด Docker หรือ Compose ใหม่ ถ้ามีผู้ดูแลอยู่แล้ว ให้คงรหัส ชื่อ อีเมล sessions และ must_change_password เดิมทั้งหมด ค่า BOOTSTRAP_ADMIN_* ใช้เฉพาะสร้างบัญชีครั้งแรก การใช้ `--sync-existing` ทำได้เฉพาะคำสั่งกู้บัญชีที่ผู้ใช้งานรันเองอย่างชัดเจน ไม่ใส่ใน startup บัญชี non-admin ที่ใช้ Username ตรงกันต้องไม่ถูกเลื่อนบทบาทอัตโนมัติ ไม่ reset ฐานข้อมูลหรือไฟล์
@@ -62,6 +62,10 @@ Local Docker quick start: `.env.app.example` -> `.env.app.local` แล้ว `d
 - หน่วยโสตดาวน์โหลดข้อสอบได้ตั้งแต่ `รอตรวจสอบ` เพื่อใช้ตรวจคำขอ และช่วง `ตัดข้อสอบ` ถึง `พิมพ์เสร็จแล้ว`; เจ้าหน้าที่ไม่มีสิทธิ์ดาวน์โหลดไฟล์ข้อสอบ
 - Audit Log เก็บ actor username/role snapshot เพื่ออ่านได้หลังลบบัญชี
 - Notification ไม่มี read state เก็บเฉพาะ `Pending/Sent/Failed`; การส่งอีเมลล้มเหลวต้องไม่ rollback งานหลัก
+- คำสั่งล่าสุด 6 ตุลาคม 2569: แจ้งบนเว็บให้อาจารย์เมื่อรับงาน ส่งกลับแก้ไข เริ่มพิมพ์ และพิมพ์เสร็จเหมือนเดิม แต่ส่งอีเมลงานข้อสอบเฉพาะเมื่อพิมพ์เสร็จถึงอาจารย์เจ้าของคำขอเท่านั้น ไม่ส่งคำขอใหม่/ยกเลิกให้หน่วยโสต ไม่ส่งพิมพ์เสร็จให้เจ้าหน้าที่ กฎนี้รวมการส่งใหม่ของรายการเก่า เมลสร้างบัญชี รีเซ็ตรหัสผ่าน และเมลทดสอบของผู้ดูแลยังใช้ตามเดิม
+- สถานะ ประวัติ Audit Log และ notifications บันทึกใน transaction เดียว ส่งเมลที่อนุญาตหลัง commit ด้วย Next.js after() ไม่แนบข้อสอบ/signed URL ลิงก์ใช้ BETTER_AUTH_URL เหตุการณ์ที่แจ้งเฉพาะเว็บคงสถานะ Pending ของ schema เดิม ไม่เป็นคิวส่งเมลและไม่แสดงปุ่มส่งใหม่ในหน้าอีเมล
+- อาจารย์เห็นล่าสุด 3 รายการและกระดิ่ง 50 รายการ ไม่มี unread/read_at; GET /api/notifications ตรวจทั้งผู้รับกับเจ้าของคำขอ ไม่รับ userId และ no-store; polling จุดเดียวทุก 30 วินาทีหยุดเมื่อแท็บซ่อน ไม่ refresh ฟอร์ม
+- ส่งใหม่เฉพาะ Pending/Failed ใช้ advisory lock รายรายการและ shared reset lock ไม่เปิด transaction ค้างระหว่าง SMTP; Sent หมายถึง SMTP ยอมรับผู้รับ ไม่ใช่อ่านแล้ว ผู้ดูแลส่งเมลทดสอบได้เฉพาะที่อยู่อีเมลผู้ส่งจาก env
 - เวลาเก็บเป็น UTC และแสดง `Asia/Bangkok`
 
 ## การจัดการข้อมูลเตรียมสอบ 5 ตุลาคม 2569

@@ -12,13 +12,28 @@ import { writeAuditLog, sessionActor } from "@/lib/audit";
 import { auth } from "@/lib/auth";
 import { ROLES } from "@/lib/constants";
 import { AuthorizationError } from "@/lib/errors";
-import { queueAndTrySendEmail } from "@/lib/mail";
+import { getMailConfiguration, mailErrorMessage, queueAndTrySendEmail, sendMailMessage } from "@/lib/mail";
 import { requireRole } from "@/lib/session";
 import {
   createUserSchema,
   passwordSchema,
   updateUserSchema,
 } from "@/lib/validation";
+
+export async function sendTestEmailAction(): Promise<ActionState> {
+  try {
+    const session = await requireRole([ROLES.ADMIN]);
+    const config = getMailConfiguration();
+    let result: ActionState;
+    try {
+      if (config.error) return { ok: false, message: config.error };
+      await sendMailMessage({ emailTo: config.sender, subject: "ทดสอบอีเมลจากระบบจัดพิมพ์ข้อสอบ", message: `นี่คืออีเมลทดสอบจริงจากระบบจัดพิมพ์ข้อสอบ\nผู้ส่ง: ${config.sender}\n\nเซิร์ฟเวอร์อีเมลยอมรับการส่งแล้ว กรุณาตรวจกล่องรับและ Spam เพื่อยืนยันการรับจริง` });
+      result = { ok: true, message: `เซิร์ฟเวอร์ยอมรับอีเมลทดสอบแล้ว กรุณาตรวจกล่องรับหรือ Spam ของ ${config.sender}` };
+    } catch (error) { result = { ok: false, message: mailErrorMessage(error) }; }
+    await writeAuditLog({ actor: sessionActor(session), action: result.ok ? "EMAIL_TEST_SENT" : "EMAIL_TEST_FAILED", targetType: "email", metadata: { transport: config.transport, recipient: config.sender, result: result.ok ? "Sent" : "Failed" } });
+    return result;
+  } catch (error) { return actionError(error); }
+}
 
 export async function createUserAction(
   _previous: ActionState,

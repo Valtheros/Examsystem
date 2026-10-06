@@ -1,16 +1,18 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
-import { count, eq, sql } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import { APIError } from "better-auth/api";
 import { AuthorizationError } from "@/lib/errors";
 
-const state = vi.hoisted(() => ({ user: { id: "", username: "", name: "", role: "อาจารย์" } }));
+const state = vi.hoisted(() => ({ user: { id: "", username: "", name: "", role: "อาจารย์" }, sendMail: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/server", () => ({ after: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/navigation", () => ({ redirect: () => { throw new Error("TEST_REDIRECT"); } }));
 vi.mock("@/lib/session", () => ({ requireRole: async (allowed: string[]) => { if (!allowed.includes(state.user.role)) throw new AuthorizationError(); return { user: { ...state.user } }; }, requireSession: async () => ({ user: { ...state.user } }) }));
-vi.mock("@/lib/mail", () => ({ queueAndTrySendEmail: async () => undefined }));
+vi.mock("nodemailer", () => ({ default: { createTransport: () => ({ sendMail: state.sendMail }) } }));
+vi.mock("@/lib/mail", async (importOriginal) => ({ ...await importOriginal<typeof import("@/lib/mail")>(), queueAndTrySendEmail: async () => undefined }));
 vi.mock("@/lib/auth", () => ({ auth: { api: { verifyPassword: vi.fn(async ({ body }: { body: { password: string } }) => {
   if (body.password !== "isolated-test-password") throw new APIError("BAD_REQUEST", { code: "INVALID_PASSWORD" });
   return { status: true };
@@ -24,7 +26,10 @@ import { POST as resetSystem } from "@/app/api/admin/system-reset/route";
 import { POST as generateCover } from "@/app/api/cover-sheets/generate/[requestRoomId]/route";
 import { purgeAllPrivateObjects, putPrivateObject, deletePrivateObject } from "@/lib/storage";
 import * as coverPdf from "@/lib/cover-pdf";
-import { updateUserAction } from "@/actions/admin";
+import { sendTestEmailAction, updateUserAction } from "@/actions/admin";
+import { GET as notificationFeed } from "@/app/api/notifications/route";
+import { getInstructorNotifications } from "@/lib/notifications";
+import { sendQueuedEmail } from "@/lib/mail";
 import { saveSubmissionAction } from "@/actions/submission";
 import { savePrintPlanAction } from "@/actions/print-plan";
 import { assignExamRoomAction, createExamRoundAction, createRoomAction, createSubjectAction, deleteSetupAction } from "@/actions/setup";
@@ -36,7 +41,7 @@ import type { AppRole, RequestStatus } from "@/lib/constants";
 const enabled = !!process.env.TEST_DATABASE_URL;
 describe.skipIf(!enabled)("real PostgreSQL workflow (isolated database only)", () => {
   let teacher: typeof user.$inferSelect, officer: typeof user.$inferSelect, av: typeof user.$inferSelect;
-  let subjectId: string, secondSubjectId: string, roomA: string, roomB: string;
+  let subjectId: string, secondSubjectId: string, roomA: string, roomB: string, completedRequestId: string;
   const form = { ...emptySubmissionForm, department: "วิทยาการคอมพิวเตอร์", language: "ไทย", printLayout: "หน้าเดียว", materials: ["ไม่มี"], computerAnswerSheet: "ไม่ต้องการ", scheduleType: "ในตาราง", coordinatorPhone: "0812345678" };
   function act(record: typeof user.$inferSelect) { state.user = { id: record.id, username: record.username!, name: record.name, role: record.role }; }
   function transition(requestId: string, toStatus: RequestStatus) { return transitionRequest({ requestId, toStatus, actor: { ...state.user, role: state.user.role as AppRole } }); }
@@ -71,6 +76,7 @@ describe.skipIf(!enabled)("real PostgreSQL workflow (isolated database only)", (
     const input = { subjectId, pageCount: 1, submissionForm: form, roomCounts: schedules.map((row) => ({ examRoomId: row.id, count: 50 })) };
     expect((await saveSubmissionAction({ ...input, roomCounts: input.roomCounts.map((row) => ({ ...row, count: 51 })) })).ok).toBe(false);
     const saved = await saveSubmissionAction(input); expect(saved.ok).toBe(true); const id = saved.requestId!;
+    completedRequestId = id;
     await expect(transition(id, "รอตรวจสอบ")).rejects.toThrow("อัปโหลด");
     const files = await db.insert(examFiles).values([1, 2].map((version) => ({ requestId: id, uploadedBy: teacher.id, kind: "ต้นฉบับ" as const, originalFileName: `fixture-${version}.pdf`, storageKey: `integration/${randomUUID()}`, contentType: "application/pdf", sizeBytes: 100, sha256: "a".repeat(64), version }))).returning();
     await transition(id, "รอตรวจสอบ");
@@ -222,6 +228,77 @@ describe.skipIf(!enabled)("real PostgreSQL workflow (isolated database only)", (
       expect((await db.select().from(coverSheets).where(eq(coverSheets.requestRoomId, room.id)))).toHaveLength(2);
     } finally { render.mockRestore(); await db.update(user).set({ name: teacher.name }).where(eq(user.id, teacher.id)); }
   }, 20000);
+  it("atomically records the four teacher events, preserves rework reasons, and scopes the feed to its owner", async () => {
+    const completed = await db.select().from(notifications).where(eq(notifications.requestId, completedRequestId));
+    expect(completed.map(row => row.type).sort()).toEqual(["รับคำขอ", "เริ่มพิมพ์", "พิมพ์เสร็จ"].sort());
+    expect(completed.every(row => row.userId === teacher.id && row.deliveryStatus === "Pending")).toBe(true);
+    expect(completed[0].message).toContain(`/dashboard/requests/${completedRequestId}`);
+    const [base] = await db.select().from(subjects).where(eq(subjects.id, subjectId));
+    const [course] = await db.insert(subjects).values({ roundId: base.roundId, courseCode: "NOTICE", courseName: "วิชาแจ้งเตือน", groupNo: "1", instructorId: teacher.id }).returning();
+    const [schedule] = await db.insert(examRooms).values({ subjectId: course.id, roomId: roomA, examDate: "2026-11-15", startsAt: "09:00", endsAt: "10:00" }).returning();
+    act(teacher);
+    const saved = await saveSubmissionAction({ subjectId: course.id, pageCount: 1, submissionForm: form, roomCounts: [{ examRoomId: schedule.id, count: 20 }] });
+    const id = saved.requestId!;
+    await db.insert(examFiles).values({ requestId: id, uploadedBy: teacher.id, kind: "ต้นฉบับ", originalFileName: "notice.pdf", storageKey: `integration/${randomUUID()}`, contentType: "application/pdf", sizeBytes: 100, sha256: "a".repeat(64), version: 1 });
+    expect((await transition(id, "รอตรวจสอบ")).notificationIds).toEqual([]);
+    act(av);
+    // A DB failure after status/history writes must roll back the entire event.
+    await db.execute(sql`create function app.reject_notice_fixture() returns trigger language plpgsql as $$ begin raise exception 'TEST_ROLLBACK'; end $$`);
+    await db.execute(sql`create trigger reject_notice_fixture before insert on app.notifications for each row execute function app.reject_notice_fixture()`);
+    try { await expect(transitionRequest({ requestId: id, toStatus: "ปฏิเสธ/ส่งกลับแก้ไข", actor: { ...state.user, role: "หน่วยโสต" }, reason: "ทดสอบ rollback" })).rejects.toThrow(); }
+    finally { await db.execute(sql`drop trigger reject_notice_fixture on app.notifications`); await db.execute(sql`drop function app.reject_notice_fixture()`); }
+    expect((await db.select().from(examRequests).where(eq(examRequests.id, id)))[0].status).toBe("รอตรวจสอบ");
+    expect(await db.select().from(requestStatusHistory).where(eq(requestStatusHistory.requestId, id))).toHaveLength(2);
+    expect(await db.select().from(notifications).where(eq(notifications.requestId, id))).toHaveLength(0);
+    const returned = await transitionRequest({ requestId: id, toStatus: "ปฏิเสธ/ส่งกลับแก้ไข", actor: { ...state.user, role: "หน่วยโสต" }, reason: "กรุณาเปลี่ยนไฟล์\nหน้าแรกไม่ครบ" });
+    expect(returned.notificationIds).toHaveLength(1);
+    await expect(transition(id, "ปฏิเสธ/ส่งกลับแก้ไข")).rejects.toThrow();
+    expect(await db.select().from(notifications).where(eq(notifications.requestId, id))).toHaveLength(1);
+    act(teacher);
+    expect((await getInstructorNotifications(teacher.id)).find(row => row.id === returned.notificationIds[0])?.reason).toBe("กรุณาเปลี่ยนไฟล์\nหน้าแรกไม่ครบ");
+    // A mismatched recipient must not leak a request belonging to somebody else.
+    await db.insert(notifications).values({ requestId: id, userId: officer.id, type: "พิมพ์เสร็จ", subject: "Mismatch", message: "private", emailTo: officer.email });
+    expect(await getInstructorNotifications(officer.id)).toHaveLength(0);
+    const response = await notificationFeed(); expect(response.headers.get("cache-control")).toBe("no-store");
+    const feed = await response.json(); expect(feed.notifications.length).toBeGreaterThan(0);
+    expect(feed.notifications.every((row: object) => !('emailTo' in row) && !('lastError' in row) && !('message' in row))).toBe(true);
+    act(officer); expect((await notificationFeed()).status).toBe(403);
+  });
+  it("isolates SMTP failure from the workflow, serializes retries, skips Sent and restricts test mail to administrators", async () => {
+    const [notice] = await db.select().from(notifications).where(and(eq(notifications.requestId, completedRequestId), eq(notifications.type, "พิมพ์เสร็จ"), eq(notifications.userId, teacher.id)));
+    vi.stubEnv("MAIL_TRANSPORT", "smtp"); vi.stubEnv("MAIL_FROM", "test-sender@example.local"); vi.stubEnv("SMTP_PORT", "1025");
+    try {
+      const callsBefore = state.sendMail.mock.calls.length;
+      const webOnly = await db.select().from(notifications).where(and(eq(notifications.requestId, completedRequestId), eq(notifications.type, "เริ่มพิมพ์")));
+      await expect(sendQueuedEmail(webOnly[0].id)).rejects.toThrow("เฉพาะเมื่อพิมพ์เสร็จ");
+      const [oldOfficer] = await db.insert(notifications).values({ requestId: completedRequestId, userId: officer.id, type: "พิมพ์เสร็จ", subject: "Legacy officer", message: "Test", emailTo: officer.email }).returning();
+      await expect(sendQueuedEmail(oldOfficer.id)).rejects.toThrow("อาจารย์เจ้าของคำขอ");
+      expect(state.sendMail).toHaveBeenCalledTimes(callsBefore);
+      expect((await db.select().from(notifications).where(eq(notifications.id, oldOfficer.id)))[0].attempts).toBe(0);
+      state.sendMail.mockRejectedValueOnce(Object.assign(new Error("secret-smtp-password"), { code: "EAUTH" }));
+      expect((await sendQueuedEmail(notice.id)).status).toBe("Failed");
+      const [failed] = await db.select().from(notifications).where(eq(notifications.id, notice.id));
+      expect(failed.attempts).toBe(1); expect(failed.lastError).not.toContain("secret-smtp-password");
+      expect((await db.select().from(examRequests).where(eq(examRequests.id, completedRequestId)))[0].status).toBe("พิมพ์เสร็จแล้ว");
+      let release!: (value: object) => void; let started!: () => void;
+      const sending = new Promise<void>(done => { started = done; });
+      state.sendMail.mockImplementationOnce(() => { started(); return new Promise(done => { release = done; }); });
+      const retry = sendQueuedEmail(notice.id); await sending;
+      await expect(sendQueuedEmail(notice.id)).rejects.toThrow("กำลังส่ง");
+      release({ accepted: [notice.emailTo] }); expect((await retry).status).toBe("Sent");
+      const calls = state.sendMail.mock.calls.length;
+      expect(await sendQueuedEmail(notice.id)).toMatchObject({ status: "Sent", alreadySent: true });
+      expect(state.sendMail).toHaveBeenCalledTimes(calls);
+      expect((await db.select().from(notifications).where(eq(notifications.id, notice.id)))[0].attempts).toBe(2);
+      act(teacher); expect((await sendTestEmailAction()).ok).toBe(false); expect(state.sendMail).toHaveBeenCalledTimes(calls);
+      const [admin] = await db.select().from(user).where(eq(user.username, "review.admin")); act(admin);
+      state.sendMail.mockImplementation(async (mail: { to: string }) => ({ accepted: [mail.to] }));
+      const previousTests = (await db.select().from(auditLogs).where(eq(auditLogs.action, "EMAIL_TEST_SENT"))).length;
+      expect((await sendTestEmailAction()).ok).toBe(true);
+      expect(state.sendMail.mock.lastCall?.[0].to).toBe("test-sender@example.local");
+      expect((await db.select().from(auditLogs).where(eq(auditLogs.action, "EMAIL_TEST_SENT")))).toHaveLength(previousTests + 1);
+    } finally { vi.unstubAllEnvs(); }
+  });
   it("clears exam data only, preserves all auth/history, and safely handles locks and storage retry", async () => {
     const [admin] = await db.select().from(user).where(eq(user.username, "review.admin"));
     const reset = (options = {}) => resetSystem(new Request("http://localhost:3000/api/admin/system-reset", {

@@ -27,6 +27,7 @@ import { ROLES, type AppRole } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { Brand } from "@/components/brand";
 import { ThemeToggle } from "@/components/theme-controls";
+import { InstructorNotificationBell } from "@/components/instructor-notifications";
 
 const allRoles = Object.values(ROLES);
 const items = [
@@ -155,6 +156,7 @@ export function DashboardNav({
           <span aria-current="page" className="truncate font-medium">{pageTitle}</span>
         </nav>
         <span className="mr-2 hidden border-r pr-5 text-sm text-muted-foreground lg:block">{role}</span>
+        <InstructorNotificationBell />
         <ThemeToggle />
         <Button variant="ghost" size="icon" className="lg:hidden" aria-label="ออกจากระบบ" title="ออกจากระบบ" onClick={signOut}>
           <LogOut aria-hidden="true" className="size-4" />

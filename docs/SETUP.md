@@ -76,11 +76,40 @@ cp .env.docker.example .env.docker
 - `BOOTSTRAP_ADMIN_*`: บัญชีผู้ดูแลระบบเริ่มต้นและรหัสผ่านชั่วคราวอย่างน้อย 12 ตัวอักษร
 - `MINIO_ROOT_*`: บัญชีดูแล MinIO ใช้เฉพาะตอน initialize
 - `MINIO_APP_*`: บัญชีแยกสำหรับตัวแอปและต้องใช้ secret คนละค่ากับ root
-- `GMAIL_*`, `MAIL_FROM`: Gmail OAuth2 ของกล่องอีเมลผู้ส่ง
+- `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `MAIL_FROM`: Gmail App Password ของกล่องอีเมลผู้ส่ง (หรือเลือก `MAIL_TRANSPORT=gmail` เพื่อใช้ OAuth2 เดิม)
 
 สร้าง secret ได้ด้วย `openssl rand -base64 48` และต้องเก็บ `.env.docker` ไว้เฉพาะบนเซิร์ฟเวอร์
 
 ## 4. เปิดระบบครั้งแรก
+
+### การแจ้งเตือนและ Gmail จริง (6 ตุลาคม 2569)
+
+ค่าเริ่มต้น local ส่งเข้า Mailpit ที่ http://localhost:8025 ไม่ใช่ Gmail และเปิดระบบได้โดยไม่ต้องมีรหัส Gmail หากต้องการส่งจริง เพิ่มค่าต่อไปนี้ใน `.env.app.local` ของเครื่องที่รัน Docker (Production ใช้ `.env.docker`):
+
+```dotenv
+MAIL_TRANSPORT=gmail-app-password
+MAIL_FROM="ระบบจัดพิมพ์ข้อสอบ <max.64466@gmail.com>"
+GMAIL_USER=max.64466@gmail.com
+GMAIL_APP_PASSWORD=ใส่_App_Password_16_ตัว
+```
+
+เปิด 2-Step Verification ของ **บัญชี Google** แล้วสร้าง App Password ชื่อ Examsystem ที่ https://myaccount.google.com/apppasswords ตาม https://support.google.com/accounts/answer/185833 ใส่รหัสเฉพาะแอปโดยไม่เว้นวรรค ห้ามใช้รหัส Gmail ปกติ ห้ามส่งรหัสนี้ในแชต/commit หรือใส่ตัวแปร NEXT_PUBLIC_ การตั้งค่านี้ไม่เพิ่ม 2FA ให้เว็บข้อสอบ
+
+ลิงก์ในอีเมลใช้ `BETTER_AUTH_URL` (local เริ่ม `http://localhost:3000`; สำหรับผู้ใช้เครื่องอื่นต้องเป็น URL ของเซิร์ฟเวอร์ที่ผู้รับเข้าถึงได้) Production กำหนดจาก `APP_ORIGIN` อย่าใช้ localhost กับระบบสาธารณะ Gmail ต้องมี MAIL_FROM อีเมลเดียวกับ GMAIL_USER; หากตั้งค่าไม่ครบเว็บยังเปิดได้ แต่ส่งล้มเหลวและแสดงข้อผิดพลาด ไม่ fallback เข้า Mailpit
+
+อัปเดตเฉพาะเว็บโดยรักษาฐานข้อมูล/ไฟล์/บัญชีเดิม:
+
+```powershell
+docker compose -f compose.yaml -f compose.app.yaml up -d --build --no-deps web
+```
+
+เข้าสู่ระบบเป็นผู้ดูแลระบบ → หน้าอีเมล → ตรวจโหมด/ผู้ส่ง/การตั้งค่า → กด **ส่งเมลทดสอบ** (ส่งได้เฉพาะอีเมลผู้ส่งจาก env) ตรวจกล่องรับและ Spam จริงก่อนถือว่า Gmail ใช้งานผ่าน Gmail อาจจำกัดการส่งตาม https://nodemailer.com/guides/using-gmail
+
+อาจารย์เห็นล่าสุด 3 รายการกับกระดิ่ง 50 รายการ และ toast เฉพาะอัปเดตใหม่เมื่อเปิดเว็บอยู่ ตรวจทุก 30 วินาทีโดยไม่ refresh ฟอร์ม ไม่มี read_at/จำนวนยังไม่อ่าน สี่เหตุการณ์บนเว็บคือรับงาน ส่งกลับแก้ไข เริ่มพิมพ์ และพิมพ์เสร็จ ส่วนอีเมลงานข้อสอบส่งเฉพาะพิมพ์เสร็จถึงอาจารย์เจ้าของคำขอ ไม่ส่งเมลให้หน่วยโสต/เจ้าหน้าที่หรือเมื่ออาจารย์ส่ง/ยกเลิกเอง ไม่มีไฟล์ข้อสอบหรือ signed URL แนบ เมลบัญชีและรีเซ็ตรหัสผ่านยังทำงานเดิม
+
+สถานะ Pending/Sent/Failed และ attempts เก็บใน notifications เดิม ส่งหลัง commit ด้วย after() งานหลักยังสำเร็จแม้ SMTP ล้มเหลว ผู้ดูแลกดส่งใหม่สำหรับ Pending/Failed ที่นโยบายปัจจุบันอนุญาตได้ (พิมพ์เสร็จถึงอาจารย์เจ้าของคำขอ/เมลบัญชีเท่านั้น; Sent ไม่ส่งซ้ำ; รายการกำลังส่งถูกล็อก) เหตุการณ์แจ้งเฉพาะเว็บคง Pending ตาม schema เดิม แต่ไม่เป็นคิวอีเมลและไม่แสดงในหน้าคิวส่งใหม่ ประวัติเมลที่ Sent ก่อนเปลี่ยนนโยบายยังแสดง ไม่มี worker/retry อัตโนมัติ Sent หมายถึง SMTP รับผู้รับแล้ว ไม่ยืนยันเข้ากล่องหลักหรืออ่านแล้ว
+
+การทดสอบอัตโนมัติใช้ฐานข้อมูล examsystem_test_* และ MinIO ทดสอบแยก การทดสอบจำลอง/Mailpit ไม่ใช่หลักฐานว่าส่ง Gmail ถึงผู้รับจริง
 
 จาก root ของ repository รัน:
 

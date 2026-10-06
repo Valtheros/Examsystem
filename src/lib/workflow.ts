@@ -13,9 +13,13 @@ import {
   printJobs,
   requestRooms,
   requestStatusHistory,
+  notifications,
+  subjects,
+  user,
 } from "@/db/schema";
 import {
   REQUEST_STATUSES,
+  BANGKOK_TIME_ZONE,
   ROLES,
   type AppRole,
   type RequestStatus,
@@ -23,6 +27,8 @@ import {
 import { ConflictError } from "@/lib/errors";
 import { assertRequestTransition } from "@/lib/permissions";
 import { submissionFormSchema, validateRequestedRooms } from "@/lib/submission-form";
+import { INSTRUCTOR_STATUS_NOTIFICATIONS } from "@/lib/notification-types";
+import type { NotificationType } from "@/lib/mail";
 
 type TransitionActor = {
   id: string;
@@ -177,6 +183,7 @@ export async function transitionRequest(input: {
       actorUsernameSnapshot: input.actor.username,
       actorRoleSnapshot: input.actor.role,
       reason: input.reason?.trim() || null,
+      createdAt: now,
     });
 
     await tx.insert(auditLogs).values({
@@ -194,7 +201,23 @@ export async function transitionRequest(input: {
       },
     });
 
-    return updated;
+    const notificationIds: string[] = [];
+    const type = (INSTRUCTOR_STATUS_NOTIFICATIONS as Partial<Record<RequestStatus, NotificationType>>)[input.toStatus];
+    if (type) {
+      const [recipient] = await tx.select({ id: user.id, name: user.name, email: user.email, courseCode: subjects.courseCode, courseName: subjects.courseName })
+        .from(user).innerJoin(subjects, eq(subjects.id, request.subjectId)).where(eq(user.id, request.instructorId)).limit(1);
+      if (!recipient) throw new ConflictError("ไม่พบอาจารย์เจ้าของคำขอ");
+      const url = new URL(`/dashboard/requests/${request.id}`, process.env.BETTER_AUTH_URL || "http://localhost:3000").href;
+      const time = new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "short", timeZone: BANGKOK_TIME_ZONE }).format(now);
+      const [notification] = await tx.insert(notifications).values({
+        userId: recipient.id, requestId: request.id, type, emailTo: recipient.email,
+        subject: `${recipient.courseCode} ${recipient.courseName}: ${input.toStatus}`,
+        message: `เรียน ${recipient.name}\n\nรายวิชา: ${recipient.courseCode} ${recipient.courseName}\nคำขอ: ${request.requestNo}\nสถานะใหม่: ${input.toStatus}${input.toStatus === REQUEST_STATUSES.CUTTING ? " (รับงานแล้วและกำลังเตรียมพิมพ์)" : ""}\nอัปเดตเมื่อ: ${time}${input.reason?.trim() ? `\nเหตุผล/หมายเหตุ: ${input.reason.trim()}` : ""}\n\nเปิดคำขอ:\n${url}`,
+        createdAt: now,
+      }).returning({ id: notifications.id });
+      notificationIds.push(notification.id);
+    }
+    return { request: updated, notificationIds };
   });
 }
 

@@ -169,3 +169,24 @@ Factory Reset ทดสอบ UI และ response branches ด้วย mock �
 - อัปเดตเฉพาะ Docker web ด้วย volumes เดิม `/api/health` ตอบ `ok`; ตรวจจำนวนข้อมูลจริงและ fingerprint รหัสผ่านก่อน/หลังเท่ากันทั้งหมด ลบเฉพาะ container และฐานข้อมูลทดสอบของงานนี้แล้ว
 
 ข้อจำกัด: ไม่ทดสอบ Firefox/Safari, เครื่องพิมพ์จริง, Gmail จริง หรือโหลดผู้ใช้พร้อมกันในรอบนี้ ไม่มี migration และไม่เปลี่ยนนโยบาย restart/volumes
+
+## ตรวจการแจ้งเตือนบนเว็บและ Gmail App Password — 6 ตุลาคม 2569
+
+- ใช้ notifications/Nodemailer เดิม ไม่เพิ่มตารางหรือ dependency มีล่าสุด 3 รายการและกระดิ่ง Sheet สูงสุด 50 รายการ ไม่มี read_at/unread count; toast เฉพาะใหม่ polling จุดเดียวทุก 30 วินาทีหยุดเมื่อซ่อนแท็บ ไม่ refresh ฟอร์ม
+- ESLint และ TypeScript ผ่าน; Vitest 84 ผ่าน (รวม PostgreSQL integration 10) ด้วย `npm run test -- --maxWorkers=2` บนฐานข้อมูล examsystem_test_notifications_20261006_1709 แยกจากจริง ลด workers เพื่อไม่ให้ password hashing ทดสอบเดิม timeout บนเครื่องนี้; Next.js build และ Docker production build ผ่าน
+- ตรวจ rollback หลังเขียนสถานะ/ประวัติแล้วแต่ notification insert ล้มเหลว: ไม่มีสถานะ/ประวัติ/แจ้งเตือนค้าง ตรวจส่งซ้ำ/concurrent retry, attempts, Failed ไม่ย้อนสถานะ, Sent ไม่ส่งซ้ำ, ผู้รับ SMTP ไม่ accepted, App Password ไม่ครบไม่ fallback, OAuth2 เดิม และข้อความผิดพลาดไม่เปิดเผยรหัส SMTP
+- Playwright ครบ 4 บทบาทผ่าน 1 กรณี: ส่งกลับพร้อมเหตุผล → ส่งใหม่ → รับงานและ toast ในแท็บอาจารย์ที่เปิดอยู่ → เริ่มพิมพ์ → พิมพ์เสร็จ; feed มี 4 เหตุการณ์ ไม่มีแจ้งเมื่ออาจารย์ส่งเอง และไม่คืน email_to/error/SMTP แม้ส่ง userId ใน URL ส่งเมลทดสอบจากหน้าผู้ดูแลสำเร็จถึง Mailpit แยก
+- feedback/usability ผ่านอีก 12 กรณีบน Chromium/mobile; หน้าล่าสุด/Sheet ตรวจ 360/768/1024/1440px ทั้ง light/dark ไม่มี document overflow ตรวจภาพด้วยสายตาและ browser CLI เพิ่มเติม แก้การถ่ายภาพทดสอบให้รอ Sheet ปิดเสร็จ ไม่เก็บภาพระหว่าง animation
+- ตรวจ API ไม่ login ได้ 401/no-store และอาจารย์กด retry ของผู้ดูแลได้ 403 ตรวจปุ่ม retry ไม่แสดงสำเร็จเมื่อ HTTP 200 แต่ ok=false ข้อมูลฟอร์มยังอยู่หลัง polling; ส่วนการทดสอบ reset ใช้การ intercept ไม่ส่งคำสั่งล้างจริง
+- ภาพเก็บเฉพาะ local ใน output/playwright/notifications-20261006-1719 (ignored) ชุด MinIO ทดสอบใช้ tmpfs และ Mailpit ทดสอบแยก ลบเฉพาะ 3 container กับฐานข้อมูลทดสอบหลังตรวจเสร็จ ไม่ลบข้อมูล/volumes จริง
+- อัปเดตเฉพาะ Docker web โดยไม่รัน setup/seed-admin ใหม่ เว็บ healthy และ /api/health ตอบ ok ตรวจจำนวนผู้ใช้/รอบ/คำขอ/ไฟล์/ใบปะหน้า/แจ้งเตือน/Audit และ fingerprint รหัสผ่านก่อน/หลังเท่ากันทั้งหมด ไม่ commit/push และไม่แก้ env จริง
+
+ข้อจำกัด: ส่งจริงที่ทดสอบคือ SMTP ไป Mailpit ไม่ใช่ Gmail ขณะส่งมอบระบบจริงยัง MAIL_TRANSPORT=smtp และยังไม่มี App Password ต้องให้ผู้ใช้ใส่ env แล้วกดส่งเมลทดสอบและตรวจกล่องรับ/Spam ก่อนยืนยัน Gmail จริง ไม่มี worker/retry อัตโนมัติ ไม่มี Firefox/Safari/load test ในรอบนี้
+
+## ขอบเขตเมลงานข้อสอบล่าสุด — 6 ตุลาคม 2569
+
+- เมลงานข้อสอบส่งเฉพาะเมื่อพิมพ์เสร็จถึงอาจารย์เจ้าของคำขอ ไม่แจ้งคำขอใหม่/ยกเลิกถึงหน่วยโสต ไม่แจ้งพิมพ์เสร็จถึงเจ้าหน้าที่ และไม่ส่งเมลรับงาน/ส่งกลับ/เริ่มพิมพ์ แจ้งเตือน 4 เหตุการณ์บนเว็บกับเมลบัญชีคงเดิม
+- กฎผู้รับตรวจที่ sendQueuedEmail ด้วย ทั้งการส่งอัตโนมัติและ retry: type พิมพ์เสร็จ และ user_id ตรง instructor_id เท่านั้น (ยกเว้นเมลบัญชี) ตรวจไม่ผ่านได้ EMAIL_DISABLED/409 ก่อนเพิ่ม attempts หรือเรียก SMTP ไม่ลบประวัติเก่า หน้าอีเมลไม่แสดงเหตุการณ์ Pending/Failed ที่ปิดส่งแล้ว แต่คงประวัติ Sent เดิม
+- ESLint ผ่าน; unit/integration 90 รายการผ่าน บนฐานข้อมูล examsystem_test_email_policy_20261006 แยก ทดสอบ after() เรียกเฉพาะพิมพ์เสร็จ การเปลี่ยนสถานะล้มเหลวไม่ส่งเมล และ SQL ปฏิเสธการส่งใหม่ให้เจ้าหน้าที่/สถานะเริ่มพิมพ์โดยไม่เรียก SMTP; build ผ่าน ทดสอบ UI notification/retry เพิ่ม 10 รายการผ่านหลังปรับข้อความ
+- ไม่มี schema migration ไม่มีการรีเซ็ตข้อมูลจริง ไม่ commit/push ใช้ Gmail env ที่ย้ายแล้วต่อไป ไม่พิมพ์ App Password และไม่ส่ง Gmail จริงระหว่างทดสอบ การนำขึ้นเว็บใช้เฉพาะ Docker web โดยไม่รัน setup/seed-admin
+- Docker engine กลับมาแล้ว build รอบสุดท้ายผ่านและอัปเดตเฉพาะ web สำเร็จ /api/health ตอบ 200/ok; runtime โหลด gmail-app-password และ App Password แล้ว (ไม่แสดงค่ารหัส) ลบเฉพาะฐานข้อมูลทดสอบ examsystem_test_email_policy_20261006 ที่สร้างในรอบนี้ ฐานข้อมูลจริงและ volumes เดิมคงอยู่ ไม่ได้ยืนยันการส่งถึง Gmail จริงจากการตรวจ health
