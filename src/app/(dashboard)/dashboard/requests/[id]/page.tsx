@@ -76,7 +76,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
         {original && downloadable ? <Link className="flex min-h-11 items-center gap-3 border-y py-4 font-medium text-primary hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring" href={`/api/files/${original.id}/download`} target="_blank"><FileText className="size-5 shrink-0" /><span className="break-all">{original.originalFileName} · ต้นฉบับ v{original.version} ↗</span></Link> : null}
         {roomSummary}
         {transition(REQUEST_STATUSES.CUTTING, "รับงานและเตรียมพิมพ์")}
-        <details className="border-t pt-4"><summary className="cursor-pointer text-sm text-muted-foreground">ต้องการส่งกลับให้อาจารย์แก้ไข</summary><WorkflowForm action={transitionWithFeedback} className="mt-4 space-y-3"><input type="hidden" name="requestId" value={request.id} /><input type="hidden" name="toStatus" value={REQUEST_STATUSES.RETURNED} /><Label htmlFor="reason">เหตุผลที่ส่งกลับ</Label><Textarea id="reason" name="reason" required /><SubmitButton variant="destructive">ส่งกลับให้อาจารย์แก้ไข</SubmitButton></WorkflowForm></details>
+        <section className="border-t pt-5" aria-labelledby="return-request-title"><h2 id="return-request-title" className="font-semibold">ส่งกลับให้อาจารย์แก้ไข</h2><WorkflowForm action={transitionWithFeedback} className="mt-4 space-y-3"><input type="hidden" name="requestId" value={request.id} /><input type="hidden" name="toStatus" value={REQUEST_STATUSES.RETURNED} /><Label htmlFor="reason">เหตุผลที่ส่งกลับ</Label><Textarea id="reason" name="reason" required /><SubmitButton variant="destructive" className="w-full sm:w-auto">ส่งกลับให้อาจารย์แก้ไข</SubmitButton></WorkflowForm></section>
       </CardContent></Card> : null}
 
       {preparing ? <Card data-testid="current-task"><CardHeader><CardTitle>2. เตรียมพิมพ์</CardTitle><CardDescription>ยืนยันไฟล์และจำนวน → สร้างใบปะหน้า → เริ่มพิมพ์</CardDescription></CardHeader><CardContent>
@@ -96,6 +96,8 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
 
       {!editable && !pending && !preparing && !printing ? <Card data-testid="current-task"><CardHeader><CardTitle>{request.cancelledAt ? "ยกเลิกคำขอแล้ว" : completed ? "พิมพ์เสร็จแล้ว · จบงานในระบบ" : "ความคืบหน้าคำขอ"}</CardTitle><CardDescription>{request.cancelledAt ? "ข้อมูลและไฟล์เดิมยังอยู่ในประวัติ" : nextStep}</CardDescription></CardHeader><CardContent>{completed && !request.cancelledAt ? <p className="mb-3 font-medium">{roomRows.length} ซอง รวม {total} ชุด</p> : null}{roomSummary}</CardContent></Card> : null}
 
+      {cancelable ? <section aria-label="การยกเลิกคำขอ" className="space-y-3 border-t pt-5"><p className="text-sm text-muted-foreground">ยกเลิกได้ก่อนหน่วยโสตรับงาน ไฟล์และประวัติเดิมยังคงอยู่</p><CancelRequestDialog requestId={request.id} /></section> : null}
+
       <section aria-label="ข้อมูลประกอบและประวัติ" className="space-y-3">
         <h2 className="text-sm font-medium text-muted-foreground">ข้อมูลประกอบและประวัติ</h2>
         {!pending && !editable ? <details className="border-t"><summary className="font-medium">แบบฟอร์มที่อาจารย์ส่ง · {request.pageCount} หน้า</summary><div className="pb-6 pt-3"><SubmissionSummary form={request.submissionForm} />{request.printDetail ? <p className="mt-4 whitespace-pre-wrap text-sm">{request.printDetail}</p> : null}</div></details> : null}
@@ -105,7 +107,6 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
           {!fileRows.length ? <p className="text-sm text-muted-foreground">ยังไม่มีไฟล์</p> : null}
         </div></details>
         <details className="border-t"><summary className="font-medium">ประวัติสถานะ · {history.length} รายการ</summary><ol className="space-y-5 pb-6 pt-3">{history.map(item=><li key={item.id} className="border-l-2 pl-4 text-sm"><p className="font-medium">{item.toStatus}</p><p className="text-muted-foreground">{item.actorUsernameSnapshot} · {item.createdAt.toLocaleString("th-TH",{timeZone:"Asia/Bangkok"})}</p>{item.reason ? <p>{item.reason}</p>:null}</li>)}</ol></details>
-        {cancelable ? <details className="border-t"><summary className="text-sm text-muted-foreground">ยกเลิกคำขอนี้</summary><div className="pb-6 pt-3"><CancelRequestDialog requestId={request.id} /></div></details>:null}
       </section>
     </div>
   );

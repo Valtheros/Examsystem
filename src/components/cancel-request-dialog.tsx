@@ -10,7 +10,7 @@ import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescript
 
 export function CancelRequestDialog({ requestId }: { requestId: string }) {
   return <AlertDialog>
-    <AlertDialogTrigger asChild><Button className="w-full" variant="destructive">ยกเลิกคำขอ</Button></AlertDialogTrigger>
+    <AlertDialogTrigger asChild><Button className="w-full sm:w-auto" variant="destructive">ยกเลิกคำขอ</Button></AlertDialogTrigger>
     <AlertDialogContent>
       <AlertDialogHeader><AlertDialogTitle>ยืนยันยกเลิกคำขอนี้?</AlertDialogTitle><AlertDialogDescription>คำขอจะไม่ปรากฏในงานปัจจุบัน แต่ไฟล์และประวัติเดิมยังคงอยู่ หากต้องการส่งใหม่ให้สร้างคำขอใหม่</AlertDialogDescription></AlertDialogHeader>
       <WorkflowForm action={cancelWithFeedback}>

@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-test("reset confirmation, cancellation and error toast without deleting data", async ({ page }, info) => {
+for (const [label, phrase, scope] of [
+  ["ล้างข้อมูลงานสอบ", "CLEAR EXAM DATA", "exam-data"],
+  ["Factory Reset", "RESET EXAM SYSTEM", "system"],
+] as const) test(`${label}: confirmation, cancellation and error toast without deleting data`, async ({ page }, info) => {
   test.skip(!process.env.REVIEW_PASSWORD, "Requires local review accounts");
   test.setTimeout(90_000);
   const nativeDialogs: string[] = [];
@@ -11,6 +14,7 @@ test("reset confirmation, cancellation and error toast without deleting data", a
   // Intercept before navigation: this test must NEVER hit the real destructive endpoint.
   await page.route("**/api/admin/system-reset", async route => {
     resetCalls++;
+    expect(route.request().postDataJSON()).toMatchObject({ scope, confirmation: phrase, storageOnly: false });
     await route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ ok: false, message: "ทดสอบ: รหัสผ่านไม่ถูกต้อง" }) });
   });
   await page.goto("/login");
@@ -24,26 +28,45 @@ test("reset confirmation, cancellation and error toast without deleting data", a
     await page.waitForTimeout(11_000);
   }
   await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByRole("link", { name: /ล้างข้อมูลงานสอบ/ })).toBeVisible();
   await page.goto("/dashboard/reset");
-  await page.getByLabel("รหัสผ่านปัจจุบัน").fill("only-a-mocked-password");
-  await page.getByLabel("พิมพ์ RESET EXAM SYSTEM").fill("RESET EXAM SYSTEM");
-  await page.getByRole("button", { name: "Factory Reset", exact: true }).click();
+  await page.getByRole("button", { name: label, exact: true }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("button", { name: "ยกเลิก" })).toBeFocused();
+  await expect(dialog.getByRole("button", { name: "ยืนยันลบถาวร" })).toBeDisabled();
+  await page.getByLabel("รหัสผ่านปัจจุบัน").fill("only-a-mocked-password");
+  await page.getByLabel(`พิมพ์ ${phrase}`).fill("wrong phrase");
+  await expect(dialog.getByRole("button", { name: "ยืนยันลบถาวร" })).toBeDisabled();
+  await page.getByLabel(`พิมพ์ ${phrase}`).fill(phrase);
   await dialog.getByRole("button", { name: "ยกเลิก" }).click();
   expect(resetCalls).toBe(0);
-  await page.getByRole("button", { name: "Factory Reset", exact: true }).click();
+  await page.getByRole("button", { name: label, exact: true }).click();
+  await page.getByLabel("รหัสผ่านปัจจุบัน").fill("only-a-mocked-password");
+  await page.getByLabel(`พิมพ์ ${phrase}`).fill(phrase);
   await expect(dialog).toBeInViewport();
   await page.screenshot({ path: info.outputPath("reset-confirmation.png"), animations: "disabled", fullPage: true });
   await dialog.getByRole("button", { name: "ยืนยันลบถาวร" }).click();
   const toast = page.locator('[data-sonner-toast][data-type="error"]');
   await expect(toast).toContainText("ทดสอบ: รหัสผ่านไม่ถูกต้อง");
-  await expect(dialog).toHaveCount(0);
+  await expect(dialog).toBeVisible();
+  await expect(page.getByLabel(`พิมพ์ ${phrase}`)).toHaveValue(phrase);
   await expect(page.getByRole("alert").filter({ hasText: "ทดสอบ: รหัสผ่านไม่ถูกต้อง" })).toBeVisible();
   await page.screenshot({ path: info.outputPath("error-toast.png"), animations: "disabled", fullPage: true });
-  await toast.getByRole("button", { name: "Close toast" }).click();
+  await dialog.getByRole("button", { name: "ยกเลิก" }).click();
+  await expect(dialog).toHaveCount(0);
+  if (await toast.isVisible()) await toast.getByRole("button", { name: "Close toast" }).click();
   await expect(toast).toHaveCount(0);
+  if (scope === "exam-data") {
+    for (const width of [360, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+      await page.getByRole("button", { name: label, exact: true }).click();
+      await expect(dialog).toBeInViewport();
+      await page.screenshot({ path: info.outputPath(`clear-confirm-${width}.png`), animations: "disabled" });
+      await dialog.getByRole("button", { name: "ยกเลิก" }).click();
+    }
+  }
   expect(resetCalls).toBe(1);
   expect(nativeDialogs).toEqual([]);
   expect(errors).toEqual([]);

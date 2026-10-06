@@ -221,7 +221,8 @@ export async function resetUserPasswordAction(
       targetType: "user",
       targetId: userId,
     });
-    return { ok: true, message: "ตั้งรหัสผ่านชั่วคราวและยกเลิก session เดิมแล้ว" };
+    revalidatePath("/dashboard/users");
+    return { ok: true, message: "เปลี่ยนรหัสผ่านแล้ว ผู้ใช้ต้องตั้งรหัสส่วนตัวใหม่เมื่อเข้าสู่ระบบ" };
   } catch (error) {
     return actionError(error);
   }

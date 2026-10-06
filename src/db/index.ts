@@ -5,7 +5,7 @@ import postgres from "postgres";
 
 import * as schema from "./schema";
 
-const databaseUrl =
+export const databaseUrl =
   process.env.DATABASE_URL ??
   "postgresql://exam_app:exam_local_password@localhost:5432/examsystem";
 

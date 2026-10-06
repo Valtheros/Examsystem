@@ -3,6 +3,7 @@ import { PSU_FACULTY_NAMES } from "./psu-faculties";
 
 import {
   APP_ROLES,
+  CLEAR_EXAM_DATA_PHRASE,
   FACTORY_RESET_PHRASE,
   MAX_EXAM_FILE_BYTES,
   REQUEST_STATUSES,
@@ -127,7 +128,11 @@ export const completeUploadSchema = uploadUrlSchema.extend({
 });
 
 export const factoryResetSchema = z.object({
-  currentPassword: z.string().min(1),
-  confirmation: z.literal(FACTORY_RESET_PHRASE),
+  currentPassword: z.string().min(1, "กรุณากรอกรหัสผ่านปัจจุบัน").max(128),
+  scope: z.enum(["system", "exam-data"]).default("system"),
+  confirmation: z.string(),
   storageOnly: z.boolean().optional().default(false),
+}).refine((value) => value.confirmation === (value.scope === "exam-data" ? CLEAR_EXAM_DATA_PHRASE : FACTORY_RESET_PHRASE), {
+  path: ["confirmation"],
+  message: "กรุณาพิมพ์ข้อความยืนยันให้ตรงกับการล้างข้อมูลที่เลือก",
 });

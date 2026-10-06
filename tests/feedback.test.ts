@@ -7,11 +7,39 @@ import { FactoryResetForm } from "@/components/factory-reset-form";
 import { ImpersonateButton } from "@/components/impersonation";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
+import { PrintPlanForm } from "@/components/print-plan-form";
+import { ResetPasswordForm } from "@/components/admin-forms";
+import { buttonVariants } from "@/components/ui/button";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 vi.mock("@/lib/auth-client", () => ({ authClient: { admin: { impersonateUser: vi.fn() }, useSession: vi.fn(() => ({ data: null })) } }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("@/actions/print-plan", () => ({ savePrintPlanAction: vi.fn() }));
+vi.mock("@/components/file-upload", () => ({ FileUpload: () => null }));
+vi.mock("@/actions/admin", () => ({ createUserAction: vi.fn(), updateUserAction: vi.fn(), resetUserPasswordAction: vi.fn() }));
 beforeEach(() => vi.clearAllMocks());
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+describe("visible workflow and password controls", () => {
+  it("keeps print editing visibly outlined and destructive actions solid", () => {
+    render(createElement(PrintPlanForm, { requestId: "request", rooms: [{ id: "room", roomCode: "L1", studentCount: 50, baseCopyCount: 50, reserveCount: 1 }], files: [{ id: "file", originalFileName: "exam.pdf", kind: "ต้นฉบับ", version: 1 }], selectedFileId: "file", revision: 1, confirmed: true, coversReady: false }));
+    const edit = screen.getByRole("button", { name: "แก้ไขไฟล์หรือจำนวน" });
+    expect(edit.getAttribute("data-variant")).toBe("outline");
+    fireEvent.click(edit);
+    expect((screen.getByLabelText("จำนวนพิมพ์หลัก") as HTMLInputElement).value).toBe("50");
+    expect(screen.getByRole("button", { name: "ยืนยันไฟล์และจำนวนพิมพ์" })).toBeTruthy();
+    expect(buttonVariants({ variant: "destructive" }).split(" ")).toContain("bg-destructive");
+    expect(buttonVariants({ variant: "destructive" }).split(" ")).toContain("text-destructive-foreground");
+  });
+  it.each([true, false])("allows an administrator to set a new password with the correct label (temporary=%j)", (isTemporary) => {
+    render(createElement(ResetPasswordForm, { userId: "teacher", isTemporary }));
+    const input = screen.getByLabelText(isTemporary ? "รหัสผ่านชั่วคราวใหม่" : "รหัสผ่านใหม่") as HTMLInputElement;
+    expect(input.type).toBe("password");
+    expect(input.value).toBe("");
+    expect(input.minLength).toBe(12);
+    expect(screen.getByRole("button", { name: isTemporary ? "ตั้งรหัสผ่านชั่วคราว" : "บันทึกรหัสผ่านใหม่" })).toBeTruthy();
+  });
+});
 
 describe("form feedback", () => {
   it("toasts success once under StrictMode and again for a new successful submission", () => {
@@ -60,9 +88,14 @@ describe("impersonation confirmation", () => {
 describe("factory reset feedback (mocked, never resets real data)", () => {
   function open() {
     render(createElement(FactoryResetForm));
+    fireEvent.click(screen.getByRole("button", { name: "Factory Reset" }));
     fireEvent.change(screen.getByLabelText("รหัสผ่านปัจจุบัน"), { target: { value: "temporary-test-password" } });
     fireEvent.change(screen.getByLabelText("พิมพ์ RESET EXAM SYSTEM"), { target: { value: "RESET EXAM SYSTEM" } });
-    fireEvent.click(screen.getByRole("button", { name: "Factory Reset" }));
+  }
+  function fillRetry() {
+    fireEvent.click(screen.getByRole("button", { name: "ลองล้างไฟล์ตกค้างอีกครั้ง" }));
+    fireEvent.change(screen.getByLabelText("รหัสผ่านปัจจุบัน"), { target: { value: "temporary-test-password" } });
+    fireEvent.change(screen.getByLabelText("พิมพ์ RESET EXAM SYSTEM"), { target: { value: "RESET EXAM SYSTEM" } });
   }
   it("requires explicit confirmation and cancellation is non-destructive", () => {
     const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
@@ -80,10 +113,10 @@ describe("factory reset feedback (mocked, never resets real data)", () => {
     open(); fireEvent.click(screen.getByRole("button", { name: "ยืนยันลบถาวร" }));
     await waitFor(() => expect(toast[kind]).toHaveBeenCalledWith(message));
     expect(screen.getByText(message)).toBeTruthy();
-    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(!!screen.queryByRole("alertdialog")).toBe(kind === "error");
     expect(fetch).toHaveBeenCalledTimes(1);
     if (kind === "warning") {
-      fireEvent.click(screen.getByRole("button", { name: "ลองล้างไฟล์ตกค้างอีกครั้ง" }));
+      fillRetry();
       fireEvent.click(screen.getByRole("button", { name: "ยืนยันลบถาวร" }));
       await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
       expect(JSON.parse(fetch.mock.calls[1][1].body).storageOnly).toBe(true);
@@ -92,7 +125,7 @@ describe("factory reset feedback (mocked, never resets real data)", () => {
   it("reports network failure", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("เชื่อมต่อไม่ได้")));
     open(); fireEvent.click(screen.getByRole("button", { name: "ยืนยันลบถาวร" }));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("เชื่อมต่อไม่ได้"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("เชื่อมต่อไม่สำเร็จ กรุณาตรวจสอบเครือข่ายแล้วลองใหม่"));
   });
   it("preserves storage-only retry after an authentication error", async () => {
     const fetch = vi.fn()
@@ -101,10 +134,31 @@ describe("factory reset feedback (mocked, never resets real data)", () => {
     vi.stubGlobal("fetch", fetch);
     open(); fireEvent.click(screen.getByRole("button", { name: "ยืนยันลบถาวร" }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
-    fireEvent.click(screen.getByRole("button", { name: "ลองล้างไฟล์ตกค้างอีกครั้ง" }));
+    fillRetry();
     fireEvent.click(screen.getByRole("button", { name: "ยืนยันลบถาวร" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("รหัสผ่านไม่ถูกต้อง"));
-    expect(screen.getByRole("button", { name: "ลองล้างไฟล์ตกค้างอีกครั้ง" })).toBeTruthy();
     expect(JSON.parse(fetch.mock.calls[1][1].body).storageOnly).toBe(true);
+  });
+  it("keeps the exam-data scope separate, requires the exact phrase, and blocks duplicate requests", async () => {
+    let resolve!: (value: unknown) => void;
+    const fetch = vi.fn<typeof globalThis.fetch>(() => new Promise(done => { resolve = (value) => done(value as Response); }));
+    vi.stubGlobal("fetch", fetch);
+    render(createElement(FactoryResetForm, { scope: "exam-data" }));
+    fireEvent.click(screen.getByRole("button", { name: "ล้างข้อมูลงานสอบ" }));
+    expect(screen.getByRole("alertdialog").textContent).toContain("ทุกคนยังใช้บัญชีและรหัสผ่านเดิมได้");
+    const confirm = screen.getByRole("button", { name: "ยืนยันลบถาวร" });
+    expect(confirm.hasAttribute("disabled")).toBe(true);
+    fireEvent.change(screen.getByLabelText("รหัสผ่านปัจจุบัน"), { target: { value: "temporary-test-password" } });
+    fireEvent.change(screen.getByLabelText("พิมพ์ CLEAR EXAM DATA"), { target: { value: "RESET EXAM SYSTEM" } });
+    expect(confirm.hasAttribute("disabled")).toBe(true);
+    fireEvent.change(screen.getByLabelText("พิมพ์ CLEAR EXAM DATA"), { target: { value: "CLEAR EXAM DATA" } });
+    fireEvent.click(confirm); fireEvent.click(confirm);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(fetch.mock.calls[0][1]?.body))).toMatchObject({ scope: "exam-data", storageOnly: false });
+    fireEvent.keyDown(screen.getByRole("alertdialog"), { key: "Escape" });
+    expect(screen.getByRole("alertdialog")).toBeTruthy();
+    resolve({ ok: true, json: async () => ({ ok: true, deletedFiles: 2 }) });
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(toast.success).toHaveBeenCalledWith("ล้างข้อมูลงานสอบสำเร็จ เก็บผู้ใช้ทุกบัญชีไว้แล้ว ลบไฟล์ 2 รายการ");
   });
 });

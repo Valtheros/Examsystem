@@ -1,17 +1,30 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { count, eq, sql } from "drizzle-orm";
+import { APIError } from "better-auth/api";
+import { AuthorizationError } from "@/lib/errors";
 
 const state = vi.hoisted(() => ({ user: { id: "", username: "", name: "", role: "อาจารย์" } }));
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/navigation", () => ({ redirect: () => { throw new Error("TEST_REDIRECT"); } }));
-vi.mock("@/lib/session", () => ({ requireRole: async (allowed: string[]) => { if (!allowed.includes(state.user.role)) throw new Error("Forbidden"); return { user: { ...state.user } }; }, requireSession: async () => ({ user: { ...state.user } }) }));
+vi.mock("@/lib/session", () => ({ requireRole: async (allowed: string[]) => { if (!allowed.includes(state.user.role)) throw new AuthorizationError(); return { user: { ...state.user } }; }, requireSession: async () => ({ user: { ...state.user } }) }));
 vi.mock("@/lib/mail", () => ({ queueAndTrySendEmail: async () => undefined }));
+vi.mock("@/lib/auth", () => ({ auth: { api: { verifyPassword: vi.fn(async ({ body }: { body: { password: string } }) => {
+  if (body.password !== "isolated-test-password") throw new APIError("BAD_REQUEST", { code: "INVALID_PASSWORD" });
+  return { status: true };
+}) } } }));
+// No reset integration test may contact the production file bucket.
+vi.mock("@/lib/storage", () => ({ purgeAllPrivateObjects: vi.fn(async () => 2), putPrivateObject: vi.fn(async () => undefined), deletePrivateObject: vi.fn(async () => undefined) }));
 
 import { db } from "@/db";
-import { auditLogs, coverSheets, examFiles, examRequests, examRooms, examRounds, printJobs, requestRooms, requestStatusHistory, rooms, subjects, user } from "@/db/schema";
+import { account, auditLogs, coverSheets, examFiles, examRequests, examRooms, examRounds, notifications, printJobs, requestRooms, requestStatusHistory, rooms, session, subjects, user, verification } from "@/db/schema";
+import { POST as resetSystem } from "@/app/api/admin/system-reset/route";
+import { POST as generateCover } from "@/app/api/cover-sheets/generate/[requestRoomId]/route";
+import { purgeAllPrivateObjects, putPrivateObject, deletePrivateObject } from "@/lib/storage";
+import * as coverPdf from "@/lib/cover-pdf";
+import { updateUserAction } from "@/actions/admin";
 import { saveSubmissionAction } from "@/actions/submission";
 import { savePrintPlanAction } from "@/actions/print-plan";
 import { assignExamRoomAction, createExamRoundAction, createRoomAction, createSubjectAction, deleteSetupAction } from "@/actions/setup";
@@ -172,5 +185,108 @@ describe.skipIf(!enabled)("real PostgreSQL workflow (isolated database only)", (
     const results = await Promise.all([request, deleteSetupAction({ ok: false, message: "" }, data)]);
     expect(results.filter(result => result.ok)).toHaveLength(1);
     expect((await db.select().from(examRounds).where(eq(examRounds.id, round.id))).length).toBe(results[0].ok ? 1 : 0);
+  });
+  it("uses the latest instructor name in new covers, keeps old covers, and rejects a concurrent name change", async () => {
+    const [base] = await db.select().from(subjects).where(eq(subjects.id, subjectId));
+    const [subject] = await db.insert(subjects).values({ roundId: base.roundId, courseCode: `COVER-${randomUUID().slice(0, 8)}`, courseName: "Cover name regression", groupNo: "1", instructorId: teacher.id }).returning();
+    const [schedule] = await db.insert(examRooms).values({ subjectId: subject.id, roomId: roomA, examDate: "2026-11-01", startsAt: "09:00", endsAt: "10:00" }).returning();
+    act(teacher);
+    const saved = await saveSubmissionAction({ subjectId: subject.id, pageCount: 1, submissionForm: form, roomCounts: [{ examRoomId: schedule.id, count: 20 }] });
+    expect(saved.ok).toBe(true);
+    const id = saved.requestId!;
+    const [file] = await db.insert(examFiles).values({ requestId: id, uploadedBy: teacher.id, kind: "ต้นฉบับ", originalFileName: "cover-name.pdf", storageKey: `integration/${randomUUID()}`, contentType: "application/pdf", sizeBytes: 100, sha256: "a".repeat(64), version: 1 }).returning();
+    await transition(id, "รอตรวจสอบ"); act(av); await transition(id, "ตัดข้อสอบ");
+    const [job] = await db.select().from(printJobs).where(eq(printJobs.requestId, id));
+    const [room] = await db.select().from(requestRooms).where(eq(requestRooms.requestId, id));
+    expect((await savePrintPlanAction({ requestId: id, selectedExamFileId: file.id, revision: job.revision, reason: "", rooms: [{ id: room.id, baseCopyCount: 20, reserveCount: 1 }] })).ok).toBe(true);
+    const generate = () => generateCover(new Request("http://localhost/api/cover-sheets/generate", { method: "POST" }), { params: Promise.resolve({ requestRoomId: room.id }) });
+    const render = vi.spyOn(coverPdf, "createCoverPdf");
+    try {
+      expect((await generate()).status).toBe(201);
+      const [old] = await db.select().from(coverSheets).where(eq(coverSheets.requestRoomId, room.id));
+      const [admin] = await db.select().from(user).where(eq(user.username, "review.admin"));
+      act(admin);
+      const change = new FormData(); Object.entries({ userId: teacher.id, name: "อาจารย์ชื่อใหม่", email: teacher.email, role: teacher.role }).forEach(([key, value]) => change.set(key, value));
+      expect((await updateUserAction({ ok: false, message: "" }, change)).ok).toBe(true);
+      act(av);
+      expect((await generate()).status).toBe(201);
+      expect(render.mock.lastCall?.[0].senderName).toBe("อาจารย์ชื่อใหม่");
+      expect((await db.select().from(coverSheets).where(eq(coverSheets.id, old.id)))[0]).toEqual(old);
+      expect((await db.select().from(coverSheets).where(eq(coverSheets.requestRoomId, room.id)))).toHaveLength(2);
+      expect((await db.select().from(requestRooms).where(eq(requestRooms.id, room.id)))[0].senderName).toBe(room.senderName);
+      vi.mocked(putPrivateObject).mockImplementationOnce(async () => { await db.update(user).set({ name: "เปลี่ยนชื่อระหว่างสร้าง" }).where(eq(user.id, teacher.id)); });
+      const conflict = await generate();
+      expect(conflict.status).toBe(409);
+      expect((await conflict.json()).message).toContain("ชื่ออาจารย์เปลี่ยน");
+      expect(deletePrivateObject).toHaveBeenCalledTimes(1);
+      expect((await db.select().from(coverSheets).where(eq(coverSheets.requestRoomId, room.id)))).toHaveLength(2);
+    } finally { render.mockRestore(); await db.update(user).set({ name: teacher.name }).where(eq(user.id, teacher.id)); }
+  }, 20000);
+  it("clears exam data only, preserves all auth/history, and safely handles locks and storage retry", async () => {
+    const [admin] = await db.select().from(user).where(eq(user.username, "review.admin"));
+    const reset = (options = {}) => resetSystem(new Request("http://localhost:3000/api/admin/system-reset", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ scope: "exam-data", confirmation: "CLEAR EXAM DATA", currentPassword: "isolated-test-password", ...options }),
+    }));
+    const business = [examRounds, subjects, rooms, examRooms, examRequests, requestRooms, examFiles, coverSheets, printJobs, notifications, requestStatusHistory];
+    const totals = () => Promise.all(business.map(async table => (await db.select({ value: count() }).from(table))[0].value));
+    for (const role of [teacher, officer, av]) { act(role); expect((await reset()).status).toBe(403); }
+    act(admin);
+    expect((await reset({ confirmation: "RESET EXAM SYSTEM" })).status).toBe(422);
+    const invalid = await reset({ currentPassword: "wrong-password" });
+    expect(invalid.status).toBe(422);
+    expect((await invalid.json()).message).toBe("รหัสผ่านปัจจุบันไม่ถูกต้อง");
+    expect(purgeAllPrivateObjects).not.toHaveBeenCalled();
+    const [request] = await db.select().from(examRequests).limit(1);
+    await db.insert(notifications).values({ userId: teacher.id, requestId: request.id, type: "คำขอใหม่", subject: "Test", message: "Test", emailTo: "test@example.local" });
+    await db.insert(session).values({ id: randomUUID(), userId: teacher.id, token: randomUUID(), expiresAt: new Date(Date.now() + 3600000) });
+    await db.insert(verification).values({ id: randomUUID(), identifier: randomUUID(), value: "test-only-token", expiresAt: new Date(Date.now() + 3600000) });
+    const authRecords = () => Promise.all([db.select().from(user).orderBy(user.id), db.select().from(account).orderBy(account.id), db.select().from(session).orderBy(session.id), db.select().from(verification).orderBy(verification.id)]);
+    const accountsBefore = await authRecords();
+    const logsBefore = await db.select({ id: auditLogs.id }).from(auditLogs);
+    expect((await totals()).every(value => value > 0)).toBe(true);
+    const lock = await db.$client.reserve();
+    try {
+      await lock`select pg_advisory_lock(921001)`;
+      expect((await reset()).status).toBe(409);
+    } finally { await lock`select pg_advisory_unlock(921001)`; lock.release(); }
+    expect(await totals()).not.toEqual(business.map(() => 0));
+    expect(await authRecords()).toEqual(accountsBefore);
+
+    let release!: (value: number) => void;
+    let reached!: () => void;
+    const storageStarted = new Promise<void>(done => { reached = done; });
+    vi.mocked(purgeAllPrivateObjects).mockImplementationOnce(() => { reached(); return new Promise(done => { release = done; }); });
+    const clearing = reset();
+    await storageStarted;
+    // The database has committed, but mutations must stay blocked until file cleanup ends.
+    const [blocked] = await db.execute(sql`select pg_try_advisory_xact_lock_shared(921001) as acquired`);
+    expect(blocked.acquired).toBe(false);
+    expect((await reset()).status).toBe(409);
+    release(2);
+    const result = await clearing;
+    expect(result.status).toBe(200);
+    expect(await result.json()).toMatchObject({ ok: true, deletedFiles: 2 });
+    expect(await totals()).toEqual(business.map(() => 0));
+    expect(await authRecords()).toEqual(accountsBefore);
+    const logsAfter = await db.select().from(auditLogs);
+    expect(logsBefore.every(row => logsAfter.some(log => log.id === row.id))).toBe(true);
+    expect(logsAfter.map(row => row.action)).toContain("EXAM_DATA_CLEAR_COMPLETED");
+
+    vi.mocked(purgeAllPrivateObjects).mockRejectedValueOnce(new Error("Test storage unavailable"));
+    expect((await reset()).status).toBe(207);
+    expect(await totals()).toEqual(business.map(() => 0));
+    expect(await authRecords()).toEqual(accountsBefore);
+    const retry = await reset({ storageOnly: true });
+    expect(retry.status).toBe(200);
+    expect((await db.select().from(auditLogs)).map(row => row.action)).toContain("EXAM_DATA_CLEAR_STORAGE_RETRY_COMPLETED");
+    const [round] = await db.insert(examRounds).values({ name: "New work", academicYear: "2569", semester: "1", createdBy: officer.id }).returning();
+    const [subject] = await db.insert(subjects).values({ roundId: round.id, courseCode: "NEW", courseName: "New work", groupNo: "1", instructorId: teacher.id }).returning();
+    const [newRequest] = await db.insert(examRequests).values({ subjectId: subject.id, requestNo: randomUUID(), instructorId: teacher.id, pageCount: 1 }).returning();
+    const calls = vi.mocked(purgeAllPrivateObjects).mock.calls.length;
+    expect((await reset({ storageOnly: true })).status).toBe(409);
+    expect(purgeAllPrivateObjects).toHaveBeenCalledTimes(calls);
+    expect(await db.select().from(examRequests).where(eq(examRequests.id, newRequest.id))).toHaveLength(1);
+    expect(await authRecords()).toEqual(accountsBefore);
   });
 });

@@ -1,5 +1,5 @@
 import { and, count, eq, isNull } from "drizzle-orm";
-import { ArrowRight, BookOpen, CalendarDays, ClipboardCheck, DoorOpen, FilePlus2, Files, Mail, Printer, UsersRound } from "lucide-react";
+import { ArrowRight, BookOpen, CalendarDays, ClipboardCheck, DoorOpen, FilePlus2, Files, Mail, Printer, Trash2, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { db } from "@/db";
 import { examRequests, examRounds, user } from "@/db/schema";
@@ -33,6 +33,7 @@ export default async function DashboardPage() {
     ? [
       { href: "users", title: "จัดการบัญชีผู้ใช้", detail: "สร้างบัญชี กำหนดบทบาท และเปิด-ปิดการใช้งาน", icon: UsersRound },
       { href: "notifications", title: "ตรวจสอบการส่งอีเมล", detail: "ตรวจรายการส่งไม่สำเร็จและลองส่งใหม่", icon: Mail },
+      { href: "reset", title: "ล้างข้อมูลงานสอบ", detail: "ล้างงานสอบและไฟล์ โดยเก็บบัญชีผู้ใช้ทุกคนไว้", icon: Trash2 },
     ]
     : session.user.role === ROLES.OFFICER
       ? [
@@ -94,14 +95,6 @@ export default async function DashboardPage() {
           ))}
         </dl>
       </section>
-      <details className="border-t">
-        <summary className="text-sm font-medium text-muted-foreground">ขั้นตอนทั้งหมดของระบบ</summary>
-        <ol className="space-y-3 py-4 text-sm text-muted-foreground">
-          {["ฉบับร่าง", "รอตรวจสอบ", "ตัดข้อสอบ", "กำลังพิมพ์", "พิมพ์เสร็จแล้ว"].map((status, index) => (
-            <li key={status}><span className="mr-3 tabular-nums">{index + 1}.</span>{status}</li>
-          ))}
-        </ol>
-      </details>
     </div>
   );
 }

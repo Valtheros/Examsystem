@@ -56,7 +56,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                       <SubmitButton size="sm" variant="outline" disabled={record.id === session.user.id}>{record.banned ? "เปิดบัญชี" : "ปิดบัญชี"}</SubmitButton>
                     </form>
                     <details><summary className="cursor-pointer text-sm text-primary">แก้ไขข้อมูลและบทบาท</summary><div className="mt-2"><EditUserForm record={record} /></div></details>
-                    <details><summary className="cursor-pointer text-sm text-primary">ตั้งรหัสผ่านชั่วคราว</summary><div className="mt-2"><ResetPasswordForm userId={record.id} /></div></details>
+                    <details><summary className="cursor-pointer text-sm font-medium text-primary">{record.mustChangePassword ? "ตั้งรหัสผ่านชั่วคราว" : "แก้รหัสผ่าน"}</summary><div className="mt-2"><ResetPasswordForm userId={record.id} isTemporary={record.mustChangePassword} /></div></details>
                   </div></details></TableCell>
                 </TableRow>
               ))}

@@ -10,6 +10,7 @@ import {
   printJobs,
   requestRooms,
   subjects,
+  user,
 } from "@/db/schema";
 import { createCoverPdf } from "@/lib/cover-pdf";
 import { REQUEST_STATUSES, ROLES } from "@/lib/constants";
@@ -31,10 +32,12 @@ export async function POST(
         room: requestRooms,
         request: examRequests,
         subject: subjects,
+        senderName: user.name,
       })
       .from(requestRooms)
       .innerJoin(examRequests, eq(requestRooms.requestId, examRequests.id))
       .innerJoin(subjects, eq(examRequests.subjectId, subjects.id))
+      .innerJoin(user, eq(examRequests.instructorId, user.id))
       .where(eq(requestRooms.id, requestRoomId))
       .limit(1);
     if (!data) throw new AppError("ไม่พบข้อมูลห้องของคำขอ", 404, "NOT_FOUND");
@@ -66,7 +69,7 @@ export async function POST(
       printCount: data.room.printCount,
       submissionForm: data.request.submissionForm,
       envelopeNo: `${allRooms.findIndex((room) => room.id === data.room.id) + 1}/${allRooms.length}`,
-      senderName: data.room.senderName,
+      senderName: data.senderName,
       note: data.room.note,
     });
     const storageKey = `cover-sheets/${data.request.id}/${randomUUID()}.pdf`;
@@ -102,6 +105,8 @@ export async function POST(
         const [currentJob] = await tx.select().from(printJobs).where(eq(printJobs.requestId, data.request.id));
         const [currentRoom] = await tx.select().from(requestRooms).where(eq(requestRooms.id, data.room.id));
         if (!currentJob || currentJob.revision !== job.revision || !currentRoom || currentRoom.printCount !== data.room.printCount || currentRoom.baseCopyCount !== data.room.baseCopyCount || currentRoom.reserveCount !== data.room.reserveCount) throw new ConflictError("จำนวนหรือไฟล์เปลี่ยนระหว่างสร้างใบปะหน้า กรุณาสร้างใหม่");
+        const [instructor] = await tx.select({ name: user.name }).from(user).where(eq(user.id, data.request.instructorId)).for("share");
+        if (instructor?.name !== data.senderName) throw new ConflictError("ชื่ออาจารย์เปลี่ยนระหว่างสร้างใบปะหน้า กรุณาสร้างใหม่");
         const [latest] = await tx
           .select({ version: max(coverSheets.version) })
           .from(coverSheets)
@@ -125,7 +130,7 @@ export async function POST(
           action: "COVER_SHEET_GENERATED",
           targetType: "cover_sheet",
           targetId: inserted[0]?.id,
-          metadata: { requestRoomId: data.room.id, version },
+          metadata: { requestRoomId: data.room.id, version, senderName: data.senderName },
         });
         return inserted;
       });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { FACTORY_RESET_PHRASE, MAX_EXAM_FILE_BYTES } from "@/lib/constants";
+import { CLEAR_EXAM_DATA_PHRASE, FACTORY_RESET_PHRASE, MAX_EXAM_FILE_BYTES } from "@/lib/constants";
 import { examRoundSchema, factoryResetSchema, passwordSchema, subjectSchema, transitionSchema, uploadUrlSchema } from "@/lib/validation";
 import { PSU_FACULTY_NAMES } from "@/lib/psu-faculties";
 
@@ -39,5 +39,9 @@ describe("security validation", () => {
   it("requires the exact irreversible reset phrase", () => {
     expect(factoryResetSchema.safeParse({ currentPassword: "x", confirmation: FACTORY_RESET_PHRASE }).success).toBe(true);
     expect(factoryResetSchema.safeParse({ currentPassword: "x", confirmation: "reset" }).success).toBe(false);
+    expect(factoryResetSchema.safeParse({ currentPassword: "x", scope: "exam-data", confirmation: CLEAR_EXAM_DATA_PHRASE }).success).toBe(true);
+    expect(factoryResetSchema.safeParse({ currentPassword: "x", scope: "exam-data", confirmation: FACTORY_RESET_PHRASE }).success).toBe(false);
+    expect(factoryResetSchema.safeParse({ currentPassword: "x", scope: "system", confirmation: CLEAR_EXAM_DATA_PHRASE }).success).toBe(false);
+    expect(factoryResetSchema.safeParse({ currentPassword: "x", confirmation: CLEAR_EXAM_DATA_PHRASE }).success).toBe(false);
   });
 });

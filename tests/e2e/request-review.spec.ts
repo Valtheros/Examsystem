@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
 import { writeFile } from "node:fs/promises";
 
@@ -27,6 +27,28 @@ test("four roles: accounts → two rooms → form/PDF → rework → quantities/
       await page.waitForTimeout(11_000);
     }
     await expect(page).toHaveURL(initial ? /change-password/ : /\/dashboard$/);
+    if (!initial) await expect(page.getByText("ขั้นตอนทั้งหมดของระบบ", { exact: true })).toHaveCount(0);
+  };
+  const checkButton = async (button: Locator, label: string) => {
+    await expect(button).toBeVisible();
+    for (const dark of [false, true]) {
+      if ((await page.evaluate(() => document.documentElement.classList.contains("dark"))) !== dark) await page.getByRole("button", { name: "สลับโหมดสี", exact: true }).click();
+      for (const width of [360, 768, 1024, 1440]) {
+        await page.setViewportSize({ width, height: 1000 });
+        const measure = await button.evaluate(element => {
+          const canvas = document.createElement("canvas"); canvas.width = canvas.height = 1;
+          const ctx = canvas.getContext("2d")!; ctx.fillStyle = "white"; ctx.fillRect(0, 0, 1, 1);
+          const parents: Element[] = []; for (let node: Element | null = element; node; node = node.parentElement) parents.unshift(node);
+          for (const node of parents) { ctx.fillStyle = getComputedStyle(node).backgroundColor; ctx.fillRect(0, 0, 1, 1); }
+          const luminance = () => Array.from(ctx.getImageData(0, 0, 1, 1).data).slice(0, 3).reduce((sum, channel, index) => { const value = channel / 255; return sum + (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4) * [0.2126, 0.7152, 0.0722][index]; }, 0);
+          const background = luminance(); ctx.fillStyle = getComputedStyle(element).color; ctx.fillRect(0, 0, 1, 1); const foreground = luminance();
+          return { height: element.getBoundingClientRect().height, contrast: (Math.max(background, foreground) + 0.05) / (Math.min(background, foreground) + 0.05), overflow: document.documentElement.scrollWidth > innerWidth + 1 };
+        });
+        expect(measure.height).toBeGreaterThanOrEqual(44); expect(measure.contrast).toBeGreaterThanOrEqual(4.5); expect(measure.overflow).toBe(false);
+        await page.screenshot({ path: info.outputPath(`${label}-${dark ? "dark" : "light"}-${width}.png`), fullPage: true });
+      }
+    }
+    if (await page.evaluate(() => document.documentElement.classList.contains("dark"))) await page.getByRole("button", { name: "สลับโหมดสี", exact: true }).click();
   };
   const choose = async (name: string, option: string | RegExp) => {
     await page.getByRole("combobox", { name, exact: true }).click();
@@ -46,6 +68,9 @@ test("four roles: accounts → two rooms → form/PDF → rework → quantities/
   await page.getByLabel("รหัสผ่านชั่วคราว", { exact: true }).fill(temporary);
   await page.getByRole("button", { name: "สร้างบัญชี", exact: true }).click();
   await expect(page.getByRole("cell").filter({ hasText: teacher }).first()).toBeVisible();
+  const teacherRow = page.getByRole("row").filter({ hasText: teacher });
+  await teacherRow.getByText("จัดการบัญชี", { exact: true }).click();
+  await expect(teacherRow.locator("summary").filter({ hasText: "ตั้งรหัสผ่านชั่วคราว" })).toBeVisible();
   await logout();
   await login("review.officer");
   await openForm("/dashboard/rounds", "สร้างรอบสอบ");
@@ -175,11 +200,16 @@ test("four roles: accounts → two rooms → form/PDF → rework → quantities/
   await page.getByRole("button", { name: "ยืนยันส่งข้อสอบให้หน่วยโสต" }).click();
   await expect(page).toHaveURL(/\/requests\/[a-f0-9-]+$/);
   const requestUrl = page.url();
+  const cancel = page.getByRole("button", { name: "ยกเลิกคำขอ", exact: true });
+  await checkButton(cancel, "cancel-visible");
+  await cancel.click(); await expect(page.getByRole("alertdialog")).toBeVisible();
+  await page.getByRole("button", { name: "กลับไปตรวจทาน", exact: true }).click();
   await logout(); await login("review.print"); await page.goto(requestUrl);
   const fileLink = page.getByTestId("current-task").getByRole("link", { name: /workflow-v1.pdf/ });
   const fileResponse = await page.request.get((await fileLink.getAttribute("href"))!);
   expect(fileResponse.ok()).toBe(true);
-  await page.getByText("ต้องการส่งกลับให้อาจารย์แก้ไข", { exact: true }).click();
+  await expect(page.getByRole("button", { name: "ส่งกลับให้อาจารย์แก้ไข", exact: true })).toBeVisible();
+  await checkButton(page.getByRole("button", { name: "ส่งกลับให้อาจารย์แก้ไข", exact: true }), "return-visible");
   await page.getByLabel("เหตุผลที่ส่งกลับ").fill("กรุณาตรวจข้อความคำแนะนำอีกครั้ง");
   await page.getByRole("button", { name: "ส่งกลับให้อาจารย์แก้ไข" }).click();
   await expect(page.getByText("ปฏิเสธ/ส่งกลับแก้ไข", { exact: true }).first()).toBeVisible();
@@ -200,6 +230,22 @@ test("four roles: accounts → two rooms → form/PDF → rework → quantities/
   await expect(page.getByRole("button", { name: "สร้างใบปะหน้าทุกห้อง" })).toBeEnabled();
   await page.getByRole("button", { name: "สร้างใบปะหน้าทุกห้อง" }).click();
   await expect(page.getByRole("button", { name: "เริ่มพิมพ์", exact: true })).toBeVisible({ timeout: 30_000 });
+  const oldCoverHref = (await page.locator('a[href*="/api/cover-sheets/"]').filter({ hasText: "v1" }).first().getAttribute("href"))!;
+  const oldPdf = await page.request.get(oldCoverHref); expect(oldPdf.ok()).toBe(true);
+  await writeFile(info.outputPath("cover-before-rename.pdf"), await oldPdf.body());
+  await logout(); await login("review.admin"); await page.goto("/dashboard/users");
+  await teacherRow.getByText("จัดการบัญชี", { exact: true }).click();
+  await expect(teacherRow.getByText("ตั้งรหัสผ่านชั่วคราว", { exact: true })).toHaveCount(0);
+  await teacherRow.getByText("แก้รหัสผ่าน", { exact: true }).click();
+  await expect(teacherRow.getByLabel("รหัสผ่านใหม่", { exact: true })).toHaveValue("");
+  await teacherRow.getByText("แก้ไขข้อมูลและบทบาท", { exact: true }).click();
+  await teacherRow.getByLabel("ชื่อ-นามสกุล", { exact: true }).fill(teacherName + " แก้ชื่อแล้ว");
+  await teacherRow.getByRole("button", { name: "บันทึกข้อมูล", exact: true }).click();
+  await expect(teacherRow).toContainText(teacherName + " แก้ชื่อแล้ว");
+  await logout(); await login("review.print"); await page.goto(requestUrl);
+  const editPlan = page.getByRole("button", { name: "แก้ไขไฟล์หรือจำนวน", exact: true });
+  await expect(editPlan).toHaveAttribute("data-variant", "outline");
+  await checkButton(editPlan, "edit-plan-visible");
   await page.getByRole("button", { name: "แก้ไขไฟล์หรือจำนวน", exact: true }).click();
   await page.getByLabel("สำรอง", { exact: true }).first().fill("2");
   await page.getByRole("button", { name: "ยืนยันไฟล์และจำนวนพิมพ์", exact: true }).click();
@@ -247,5 +293,14 @@ test("four roles: accounts → two rooms → form/PDF → rework → quantities/
   await roomRow.getByRole("link", { name: "แก้ไขห้อง", exact: true }).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name: "แก้ไขห้องสอบ", exact: true })).toBeVisible();
+  await logout(); await login("review.admin"); await page.goto("/dashboard/users");
+  await teacherRow.getByText("จัดการบัญชี", { exact: true }).click();
+  await teacherRow.getByText("แก้รหัสผ่าน", { exact: true }).click();
+  const replacement = "ReplacedWorkflow2026!";
+  await teacherRow.getByLabel("รหัสผ่านใหม่", { exact: true }).fill(replacement);
+  await teacherRow.getByRole("button", { name: "บันทึกรหัสผ่านใหม่", exact: true }).click();
+  await expect(teacherRow.locator("summary").filter({ hasText: "ตั้งรหัสผ่านชั่วคราว" })).toBeVisible();
+  await logout(); await login(teacher, replacement, true);
+  await expect(page.getByRole("heading", { name: "ตั้งรหัสผ่านส่วนตัว", exact: true })).toBeVisible();
   expect(browserErrors).toEqual([]);
 });

@@ -53,15 +53,16 @@ export function CreateUserForm() {
   );
 }
 
-export function ResetPasswordForm({ userId }: { userId: string }) {
+export function ResetPasswordForm({ userId, isTemporary = true }: { userId: string; isTemporary?: boolean }) {
   const [state, action] = useActionState(resetUserPasswordAction, initialActionState);
   return (
     <form action={action} className="space-y-3 border-t py-4">
       <input type="hidden" name="userId" value={userId} />
       <ActionMessage state={state} />
-      <Label htmlFor={`password-${userId}`}>รหัสผ่านชั่วคราวใหม่</Label>
+      <Label htmlFor={`password-${userId}`}>{isTemporary ? "รหัสผ่านชั่วคราวใหม่" : "รหัสผ่านใหม่"}</Label>
       <Input id={`password-${userId}`} name="temporaryPassword" type="password" minLength={12} required />
-      <SubmitButton size="sm" variant="outline">รีเซ็ตรหัสผ่าน</SubmitButton>
+      <p className="text-sm text-muted-foreground">session เดิมจะถูกยกเลิก และผู้ใช้ต้องตั้งรหัสส่วนตัวใหม่เมื่อเข้าสู่ระบบครั้งถัดไป</p>
+      <SubmitButton>{isTemporary ? "ตั้งรหัสผ่านชั่วคราว" : "บันทึกรหัสผ่านใหม่"}</SubmitButton>
     </form>
   );
 }

@@ -29,6 +29,7 @@ export const MAX_EXAM_FILE_BYTES = 100 * 1024 * 1024;
 export const UPLOAD_URL_EXPIRES_SECONDS = 5 * 60;
 export const DOWNLOAD_URL_EXPIRES_SECONDS = 60;
 export const FACTORY_RESET_PHRASE = "RESET EXAM SYSTEM";
+export const CLEAR_EXAM_DATA_PHRASE = "CLEAR EXAM DATA";
 
 export const BANGKOK_TIME_ZONE = "Asia/Bangkok";
 
